@@ -1,5 +1,9 @@
-WhatSapp Monorepo - Initialization Summary
-==========================================
+WhatSapp Monorepo - Build Summary
+==================================
+
+========================================
+STEP 1 — Monorepo Initialization
+========================================
 
 ROOT FILES
 ----------
@@ -46,6 +50,37 @@ app/models/friendship.py    - Friendship: id, requester_id, addressee_id,
 app/auth/__init__.py        - Package marker
 app/auth/security.py        - hash_password, verify_password, create_access_token, decode_access_token
 app/routers/__init__.py     - Package marker (routers to be added per feature)
+
+========================================
+STEP 2 — Auth Flow
+========================================
+
+BACKEND
+-------
+app/schemas/auth.py         - LoginRequest, TokenResponse (Pydantic schemas)
+app/schemas/user.py         - UserCreate, UserOut (Pydantic schemas)
+app/dependencies.py         - get_current_user: validates Bearer JWT, loads User from DB
+app/routers/auth.py         - POST /auth/register — creates user, returns UserOut
+                              POST /auth/login    — verifies credentials, returns JWT
+app/routers/users.py        - GET /users/me      — returns current user (protected)
+main.py                     - auth + users routers included
+
+FRONTEND
+--------
+src/context/AuthContext.jsx         - AuthProvider with user, login(), register(), logout()
+                                      restores session from localStorage on page load
+src/components/ProtectedRoute.jsx   - redirects unauthenticated users to /login
+src/pages/Login.jsx                 - email + password form, error display, link to register
+src/pages/Register.jsx              - username + email + password form, min 8-char password
+src/App.jsx                         - /login, /register public routes; / protected route;
+                                      * catch-all redirects to /
+src/main.jsx                        - <AuthProvider> wraps the router tree
+
+AUTH FLOW
+---------
+Register -> POST /auth/register -> auto-login -> POST /auth/login -> JWT stored in
+localStorage -> axios interceptor attaches Bearer token to every request ->
+GET /users/me validates token and hydrates user state on page load.
 
 NEXT STEPS
 ----------
