@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgis/postgis:15-3.3
+    container_name: whatsapp_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: whatsapp
+      POSTGRES_PASSWORD: whatsapp
+      POSTGRES_DB: whatsapp
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

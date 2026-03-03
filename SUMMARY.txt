@@ -1,0 +1,63 @@
+WhatSapp Monorepo - Initialization Summary
+==========================================
+
+ROOT FILES
+----------
+.gitignore          - Ignores node_modules, __pycache__, .env, venv, build artifacts
+README.md           - Project overview + quick-start for all three pieces
+docker-compose.yml  - postgis/postgis:15-3.3 on port 5432
+
+FRONTEND  (frontend/)
+---------------------
+package.json            - React 18, Vite, React Router v6, Tailwind CSS, Axios
+vite.config.js          - Vite config + dev-proxy /api -> localhost:8000
+tailwind.config.js      - Tailwind content paths
+postcss.config.js       - PostCSS pipeline (tailwindcss + autoprefixer)
+.env.example            - VITE_GOOGLE_MAPS_API_KEY, VITE_API_URL
+index.html              - Vite HTML entry point
+src/main.jsx            - React root + BrowserRouter
+src/App.jsx             - React Router v6 shell with a placeholder Home route
+src/index.css           - Tailwind directives (@tailwind base/components/utilities)
+src/api/axios.js        - Axios instance with JWT Authorization header interceptor
+
+BACKEND  (backend/)
+-------------------
+requirements.txt            - fastapi, uvicorn, sqlalchemy, alembic, geoalchemy2,
+                              psycopg2-binary, python-jose, passlib, pydantic-settings
+.env.example                - DATABASE_URL, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+main.py                     - FastAPI app entry point + CORS middleware
+alembic.ini                 - Alembic config file
+alembic/env.py              - Alembic env wired to pydantic Settings + Base.metadata
+alembic/script.py.mako      - Migration template (includes geoalchemy2 import)
+alembic/versions/           - Empty directory for generated migration files
+
+app/__init__.py             - Package marker
+app/config.py               - pydantic-settings Settings (reads .env)
+app/database.py             - SQLAlchemy engine, SessionLocal, get_db() dependency
+
+app/models/__init__.py      - DeclarativeBase + imports all models for Alembic discovery
+app/models/user.py          - User: id, username, email, hashed_password, is_active, created_at
+app/models/map_collection.py- MapCollection: id, owner_id, title, description, is_public, timestamps
+app/models/place.py         - Place: id, collection_id, name, description, address,
+                              location (PostGIS POINT SRID 4326), google_place_id
+app/models/friendship.py    - Friendship: id, requester_id, addressee_id,
+                              status (pending/accepted/blocked), unique pair constraint
+
+app/auth/__init__.py        - Package marker
+app/auth/security.py        - hash_password, verify_password, create_access_token, decode_access_token
+app/routers/__init__.py     - Package marker (routers to be added per feature)
+
+NEXT STEPS
+----------
+1.  docker compose up -d
+2.  cd backend
+    python -m venv venv && source venv/bin/activate
+    pip install -r requirements.txt
+    cp .env.example .env          # fill in SECRET_KEY
+    alembic revision --autogenerate -m "init"
+    alembic upgrade head
+    uvicorn main:app --reload
+3.  cd frontend
+    npm install
+    cp .env.example .env.local    # fill in VITE_GOOGLE_MAPS_API_KEY
+    npm run dev
