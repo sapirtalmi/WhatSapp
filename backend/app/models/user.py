@@ -23,3 +23,6 @@ class User(Base):
     received_requests: Mapped[list["Friendship"]] = relationship(
         foreign_keys="Friendship.addressee_id", back_populates="addressee"
     )
+    saved_collections: Mapped[list["SavedCollection"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )

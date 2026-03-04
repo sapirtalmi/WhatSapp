@@ -21,3 +21,4 @@ class MapCollection(Base):
 
     owner: Mapped["User"] = relationship(back_populates="collections")
     places: Mapped[list["Place"]] = relationship(back_populates="collection", cascade="all, delete-orphan")
+    saved_by: Mapped[list["SavedCollection"]] = relationship(back_populates="collection", cascade="all, delete-orphan")
