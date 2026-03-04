@@ -324,12 +324,73 @@ SETUP
   # For iOS simulator:   npx expo run:ios
   # For Android:         npx expo run:android
 
-NEXT STEPS
-----------
+========================================
+STEP 10 — Rich Filtering, Map-Tap-to-Add, UI Overhaul
+========================================
+
+BACKEND ENRICHMENTS
+-------------------
+app/schemas/place.py        - PlaceOut: added collection_title, owner_id, owner_username (optional fields)
+app/schemas/collection.py   - CollectionOut: added place_count, owner_username (optional fields)
+app/routers/places.py       - _place_to_out(): now accepts optional MapCollection, populates new fields
+                              _get_collection_or_404(): uses joinedload(owner) to avoid N+1
+                              All endpoints enriched: collection-scoped CRUD, nearby, bbox
+                              NEW: GET /places — global search with ?type, ?q, ?collection_id,
+                                   ?owner_id, ?sort (recent|name), ?limit, ?offset
+                              GET /places/nearby: added ?q (name search)
+app/routers/collections.py  - _collection_to_out(): populates place_count via subquery + owner_username
+                              GET /collections: added ?search, ?owner_id, ?mine_only, ?sort params
+                              All endpoints now use joinedload(owner) for efficient queries
+app/routers/feed.py         - Uses joinedload(Place.collection → MapCollection.owner)
+                              Feed places now include collection_title + owner_username
+
+FRONTEND (WEB) OVERHAUL
+------------------------
+src/App.jsx                 - REWRITE: persistent left sidebar nav (slate-900), responsive collapse on mobile
+                              Layout wraps all protected pages; sidebar has nav links + user footer + logout
+                              Home route now redirects to /feed
+src/api/feed.js             - getFeed() now accepts type parameter → ?type= query
+src/components/MapView.jsx  - Added onMapClick prop: called with (lat, lng) on map background click
+                              Added markerColor prop: function(place) → hex color
+                              Custom SVG pin markers colored by type (food/travel/shop/hangout/default)
+                              InfoWindow now shows collection_title
+src/components/AddPlaceModal.jsx - Added initialLat / initialLng props (pre-fills lat/lng from map click)
+                                   Added type picker chips (color-coded: food/travel/shop/hangout)
+                                   Improved layout and indigo accent colors
+src/pages/Feed.jsx          - Type filter pills: All | Food | Travel | Shop | Hangout (re-fetches on change)
+                              Cards: color-coded left border + badge by type, show collection + owner meta
+                              Skeleton loading animation; map/list toggle stays at top right
+src/pages/Collections.jsx   - Tab filters: All | Mine | Public | Shared (client-side filter)
+                              Search bar (client-side title/description filter)
+                              Cards: colored top accent gradient, place count, owner name for shared
+                              FAB (+ button) at bottom-right instead of header button
+src/pages/CollectionDetail.jsx - Type filter chips above list (All | Food | Travel | Shop | Hangout)
+                                  Map click-to-add: clicking map → opens AddPlaceModal with coords pre-filled
+                                  "Click on map to add a place" hint shown for owners in map view
+                                  Color-coded markers by type via markerColor prop
+                                  Improved layout with view toggle + add button in same row
+
+MOBILE OVERHAUL
+---------------
+app/(tabs)/explore.jsx      - REWRITE: type filter bar (scrollable chips) at top of map
+                              Tap map → bottom sheet modal to add place at tapped location
+                              Collection picker (horizontal chip scroll), type picker, name + address inputs
+                              New place added to markers immediately; pending pin shown in green
+                              Nearby markers color-coded by type; callout shows collection_title
+app/(tabs)/index.jsx        - REWRITE: type filter chips bar at top (re-fetches on change)
+                              Cards: left border accent + colored badges by type
+                              Shows collection_title + owner_username below address
+                              Removed raw lat/lng coords from cards
+app/collection/[id].jsx     - REWRITE: type filter chips below header (client-side filter)
+                              Map tap → opens add-place modal with lat/lng pre-filled
+                              Map hint "Tap the map to add a place"
+                              Color-coded markers by type; left-border cards with type badges
+                              Header row: view toggle + "+ Add" button side by side
+
+DEV WORKFLOW (UPDATED)
+----------------------
 1.  Start Postgres.app
-2.  cd backend && source venv/bin/activate
-    alembic revision --autogenerate -m "place_type_saved_collections"
-    alembic upgrade head
-    uvicorn main:app --reload
+2.  cd backend && source venv/bin/activate && uvicorn main:app --reload --host 0.0.0.0
 3.  cd frontend && npm run dev
-4.  cd mobile && npm install && npx expo start
+4.  cd mobile && npx expo start --tunnel --clear
+    (iPhone must be on same WiFi as Mac to reach local backend IP)

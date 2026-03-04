@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.models.friendship import Friendship
 from app.models.map_collection import MapCollection
 from app.models.user import User
 from app.schemas.collection import CollectionOut
@@ -29,12 +30,28 @@ def search_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Search users by username (case-insensitive, excludes self)."""
+    """Search users by username (case-insensitive, excludes self and existing friends/requests)."""
+    # IDs of users already in any friendship with current user
+    existing = db.execute(
+        select(Friendship).where(
+            or_(
+                Friendship.requester_id == current_user.id,
+                Friendship.addressee_id == current_user.id,
+            )
+        )
+    ).scalars().all()
+    excluded_ids = set()
+    for f in existing:
+        excluded_ids.add(f.requester_id)
+        excluded_ids.add(f.addressee_id)
+    excluded_ids.discard(current_user.id)
+
     results = db.execute(
         select(User).where(
             User.username.ilike(f"%{q}%"),
             User.id != current_user.id,
-            User.is_active == True,
+            User.id.not_in(excluded_ids) if excluded_ids else True,
+            User.is_active.is_not(False),
         ).limit(20)
     ).scalars().all()
     return results

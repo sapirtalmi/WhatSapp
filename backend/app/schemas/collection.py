@@ -23,5 +23,7 @@ class CollectionOut(BaseModel):
     is_public: bool
     created_at: datetime
     updated_at: datetime
+    place_count: int = 0
+    owner_username: str | None = None
 
     model_config = {"from_attributes": True}

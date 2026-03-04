@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import and_, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.dependencies import get_current_user
@@ -29,7 +29,6 @@ def get_feed(
 
     Ordered by most recently added. Supports pagination via limit/offset.
     """
-    # Find all accepted friend IDs (bidirectional)
     friend_rows = db.execute(
         select(Friendship).where(
             and_(
@@ -47,10 +46,10 @@ def get_feed(
         other = f.addressee_id if f.requester_id == current_user.id else f.requester_id
         friend_ids.add(other)
 
-    # Fetch places from own + friends' public collections
     stmt = (
         select(Place)
         .join(MapCollection, Place.collection_id == MapCollection.id)
+        .options(joinedload(Place.collection).joinedload(MapCollection.owner))
         .where(
             or_(
                 MapCollection.owner_id == current_user.id,
@@ -67,4 +66,4 @@ def get_feed(
 
     stmt = stmt.limit(limit).offset(offset)
     places = db.execute(stmt).scalars().all()
-    return [_place_to_out(p) for p in places]
+    return [_place_to_out(p, p.collection) for p in places]

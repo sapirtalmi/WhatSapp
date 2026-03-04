@@ -10,49 +10,99 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { router } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 import { getCollections, createCollection, deleteCollection } from "../../src/api/collections";
 
-function CollectionItem({ item, onDelete }) {
+const ACCENT_COLORS = ["#6366f1", "#f97316", "#22c55e", "#3b82f6", "#a855f7", "#ec4899", "#14b8a6"];
+
+function accentFor(id) {
+  return ACCENT_COLORS[id % ACCENT_COLORS.length];
+}
+
+function CollectionCard({ item, onDelete }) {
+  const accent = accentFor(item.id);
   return (
     <TouchableOpacity
       style={styles.card}
       onPress={() => router.push(`/collection/${item.id}`)}
+      activeOpacity={0.75}
     >
-      <View style={styles.cardRow}>
-        <Text style={styles.cardTitle}>{item.title}</Text>
-        <Text style={styles.privacy}>{item.is_public ? "Public" : "Private"}</Text>
+      <View style={[styles.cardAccent, { backgroundColor: accent }]} />
+      <View style={styles.cardBody}>
+        <View style={styles.cardRow}>
+          <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+          <View style={[styles.privacyBadge, item.is_public ? styles.publicBadge : styles.privateBadge]}>
+            <Text style={[styles.privacyText, item.is_public ? styles.publicText : styles.privateText]}>
+              {item.is_public ? "Public" : "Private"}
+            </Text>
+          </View>
+        </View>
+
+        {item.description ? (
+          <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
+        ) : null}
+
+        <View style={styles.cardFooter}>
+          {item.place_count != null ? (
+            <View style={styles.countBadge}>
+              <Text style={styles.countText}>📍 {item.place_count} place{item.place_count !== 1 ? "s" : ""}</Text>
+            </View>
+          ) : null}
+          <TouchableOpacity onPress={() => onDelete(item.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.deleteBtnText}>Remove</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-      {item.description ? <Text style={styles.cardDesc} numberOfLines={1}>{item.description}</Text> : null}
-      <TouchableOpacity onPress={() => onDelete(item.id)} style={styles.deleteBtn}>
-        <Text style={styles.deleteBtnText}>Delete</Text>
-      </TouchableOpacity>
     </TouchableOpacity>
   );
 }
 
 export default function CollectionsScreen() {
+  const navigation = useNavigation();
   const [collections, setCollections] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isPublic, setIsPublic] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  function loadCollections() {
     getCollections()
       .then(setCollections)
       .catch(() => Alert.alert("Error", "Failed to load collections."))
       .finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(() => { loadCollections(); }, []);
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity onPress={loadCollections} hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}>
+          <Text style={{ fontSize: 22, color: "#4f46e5", fontWeight: "600", marginRight: 4 }}>↻</Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation]);
+
+  const filtered = search.trim()
+    ? collections.filter((c) =>
+        c.title.toLowerCase().includes(search.toLowerCase()) ||
+        c.description?.toLowerCase().includes(search.toLowerCase())
+      )
+    : collections;
 
   async function handleCreate() {
     if (!title.trim()) return;
     setSaving(true);
     try {
-      const c = await createCollection({ title, description: description || null, is_public: isPublic });
+      const c = await createCollection({ title: title.trim(), description: description.trim() || null, is_public: isPublic });
       setCollections((prev) => [c, ...prev]);
       setModalVisible(false);
       setTitle("");
@@ -84,18 +134,44 @@ export default function CollectionsScreen() {
   }
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator color="#4f46e5" /></View>;
+    return <View style={styles.center}><ActivityIndicator size="large" color="#4f46e5" /></View>;
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#f9fafb" }}>
+    <View style={styles.screen}>
+      {/* Search bar */}
+      <View style={styles.searchWrapper}>
+        <View style={styles.searchRow}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search collections…"
+            placeholderTextColor="#94a3b8"
+            value={search}
+            onChangeText={setSearch}
+            autoCorrect={false}
+          />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch("")}>
+              <Text style={styles.clearBtn}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
       <FlatList
-        data={collections}
+        data={filtered}
         keyExtractor={(c) => String(c.id)}
-        renderItem={({ item }) => <CollectionItem item={item} onDelete={handleDelete} />}
+        renderItem={({ item }) => <CollectionCard item={item} onDelete={handleDelete} />}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
-          <Text style={styles.emptyText}>No collections yet. Create one!</Text>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>📚</Text>
+            <Text style={styles.emptyTitle}>{search ? "No matches" : "No collections yet"}</Text>
+            <Text style={styles.emptyHint}>
+              {search ? `No collections match "${search}"` : "Tap + to create your first collection"}
+            </Text>
+          </View>
         }
       />
 
@@ -103,62 +179,115 @@ export default function CollectionsScreen() {
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
 
-      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
-        <View style={styles.modal}>
-          <Text style={styles.modalTitle}>New collection</Text>
+      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalVisible(false)}>
+        <KeyboardAvoidingView style={styles.modal} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>New collection</Text>
+            <TouchableOpacity onPress={() => setModalVisible(false)}>
+              <Text style={styles.modalClose}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
           <TextInput
             style={styles.input}
-            placeholder="Title"
+            placeholder="Collection name *"
+            placeholderTextColor="#94a3b8"
             value={title}
             onChangeText={setTitle}
           />
           <TextInput
-            style={[styles.input, { height: 80 }]}
+            style={[styles.input, styles.inputMultiline]}
             placeholder="Description (optional)"
+            placeholderTextColor="#94a3b8"
             value={description}
             onChangeText={setDescription}
             multiline
+            textAlignVertical="top"
           />
+
           <View style={styles.switchRow}>
-            <Text style={styles.switchLabel}>Public</Text>
-            <Switch value={isPublic} onValueChange={setIsPublic} />
+            <View>
+              <Text style={styles.switchLabel}>Make public</Text>
+              <Text style={styles.switchHint}>Friends can see and save this collection</Text>
+            </View>
+            <Switch
+              value={isPublic}
+              onValueChange={setIsPublic}
+              trackColor={{ true: "#4f46e5" }}
+              thumbColor="#fff"
+            />
           </View>
+
           <TouchableOpacity
-            style={[styles.saveBtn, saving && { opacity: 0.6 }]}
+            style={[styles.saveBtn, (!title.trim() || saving) && styles.saveBtnDisabled]}
             onPress={handleCreate}
-            disabled={saving}
+            disabled={!title.trim() || saving}
           >
-            <Text style={styles.saveBtnText}>{saving ? "Saving…" : "Create"}</Text>
+            <Text style={styles.saveBtnText}>{saving ? "Creating…" : "Create collection"}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setModalVisible(false)}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  list: { padding: 16, gap: 10 },
+  screen: { flex: 1, backgroundColor: "#f8fafc" },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+
+  searchWrapper: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f1f5f9",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 2,
+    gap: 8,
+  },
+  searchIcon: { fontSize: 14, color: "#94a3b8" },
+  searchInput: { flex: 1, fontSize: 14, color: "#0f172a", paddingVertical: 10 },
+  clearBtn: { fontSize: 14, color: "#94a3b8", padding: 4 },
+
+  list: { padding: 16, gap: 12, paddingBottom: 100 },
+
   card: {
     backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
+    borderRadius: 16,
+    overflow: "hidden",
     shadowColor: "#000",
     shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowRadius: 6,
     elevation: 2,
+    flexDirection: "row",
   },
-  cardRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  cardTitle: { fontSize: 15, fontWeight: "600", color: "#111827" },
-  privacy: { fontSize: 11, color: "#6b7280" },
-  cardDesc: { fontSize: 12, color: "#9ca3af", marginTop: 4 },
-  deleteBtn: { marginTop: 8, alignSelf: "flex-end" },
-  deleteBtnText: { fontSize: 12, color: "#ef4444" },
-  emptyText: { textAlign: "center", color: "#9ca3af", marginTop: 40 },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  cardAccent: { width: 5 },
+  cardBody: { flex: 1, padding: 14, gap: 6 },
+  cardRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
+  cardTitle: { fontSize: 15, fontWeight: "700", color: "#0f172a", flex: 1 },
+  privacyBadge: { borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3 },
+  publicBadge: { backgroundColor: "#dcfce7" },
+  privateBadge: { backgroundColor: "#f1f5f9" },
+  privacyText: { fontSize: 10, fontWeight: "600" },
+  publicText: { color: "#16a34a" },
+  privateText: { color: "#64748b" },
+  cardDesc: { fontSize: 12, color: "#94a3b8", lineHeight: 17 },
+  cardFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4 },
+  countBadge: { backgroundColor: "#f1f5f9", borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3 },
+  countText: { fontSize: 11, color: "#64748b", fontWeight: "500" },
+  deleteBtnText: { fontSize: 12, color: "#ef4444", fontWeight: "500" },
+
+  emptyState: { alignItems: "center", paddingVertical: 60 },
+  emptyIcon: { fontSize: 48, marginBottom: 12 },
+  emptyTitle: { fontSize: 17, fontWeight: "700", color: "#64748b", marginBottom: 6 },
+  emptyHint: { fontSize: 13, color: "#94a3b8", textAlign: "center" },
+
   fab: {
     position: "absolute",
     bottom: 24,
@@ -169,25 +298,49 @@ const styles = StyleSheet.create({
     backgroundColor: "#4f46e5",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 5,
+    shadowColor: "#4f46e5",
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
-  fabText: { color: "#fff", fontSize: 28, lineHeight: 32 },
-  modal: { flex: 1, padding: 24, paddingTop: 48, backgroundColor: "#fff" },
-  modalTitle: { fontSize: 22, fontWeight: "bold", marginBottom: 24, color: "#111827" },
+  fabText: { color: "#fff", fontSize: 28, lineHeight: 32, marginTop: -2 },
+
+  modal: { flex: 1, padding: 24, paddingTop: 36, backgroundColor: "#fff" },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 24 },
+  modalTitle: { fontSize: 22, fontWeight: "bold", color: "#0f172a" },
+  modalClose: { fontSize: 18, color: "#94a3b8", padding: 4 },
+
   input: {
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    padding: 12,
+    borderColor: "#e2e8f0",
+    borderRadius: 10,
+    padding: 13,
     marginBottom: 12,
     fontSize: 14,
+    color: "#0f172a",
+    backgroundColor: "#fafafa",
   },
-  switchRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
-  switchLabel: { fontSize: 14, color: "#374151" },
-  saveBtn: { backgroundColor: "#4f46e5", borderRadius: 8, padding: 14, alignItems: "center" },
-  saveBtnText: { color: "#fff", fontWeight: "600", fontSize: 15 },
-  cancelText: { marginTop: 16, textAlign: "center", color: "#6b7280", fontSize: 13 },
+  inputMultiline: { height: 80 },
+
+  switchRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+    marginBottom: 20,
+  },
+  switchLabel: { fontSize: 14, fontWeight: "600", color: "#0f172a" },
+  switchHint: { fontSize: 12, color: "#94a3b8", marginTop: 2 },
+
+  saveBtn: {
+    backgroundColor: "#4f46e5",
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+  },
+  saveBtnDisabled: { opacity: 0.5 },
+  saveBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
 });
