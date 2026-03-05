@@ -14,3 +14,6 @@ export const deletePlace = (collectionId, placeId) =>
 
 export const getNearbyPlaces = (lat, lng, radiusMeters = 5000) =>
   api.get("/places/nearby", { params: { lat, lng, radius: radiusMeters } }).then((r) => r.data);
+
+export const getGlobalPlaces = (params = {}) =>
+  api.get("/places", { params }).then((r) => r.data);

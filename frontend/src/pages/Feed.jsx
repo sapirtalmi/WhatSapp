@@ -9,6 +9,7 @@ const TYPE_FILTERS = [
   { value: null, label: "All" },
   { value: "food", label: "🍽 Food" },
   { value: "travel", label: "✈️ Travel" },
+  { value: "exercise", label: "🏋 Exercise" },
   { value: "shop", label: "🛍 Shop" },
   { value: "hangout", label: "☕️ Hangout" },
 ];
@@ -16,6 +17,7 @@ const TYPE_FILTERS = [
 const TYPE_STYLES = {
   food: { badge: "bg-orange-100 text-orange-700", border: "border-l-orange-400" },
   travel: { badge: "bg-blue-100 text-blue-700", border: "border-l-blue-400" },
+  exercise: { badge: "bg-red-100 text-red-700", border: "border-l-red-400" },
   shop: { badge: "bg-purple-100 text-purple-700", border: "border-l-purple-400" },
   hangout: { badge: "bg-green-100 text-green-700", border: "border-l-green-400" },
 };
@@ -136,7 +138,7 @@ export default function Feed() {
         </div>
       )}
 
-      {!loading && places.length > 0 && view === "map" && (
+      {!loading && view === "map" && (
         <MapView places={places} height="520px" />
       )}
 

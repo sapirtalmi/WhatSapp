@@ -9,9 +9,11 @@ import CollectionDetail from "./pages/CollectionDetail";
 import Nearby from "./pages/Nearby";
 import Friends from "./pages/Friends";
 import Feed from "./pages/Feed";
+import MapExplore from "./pages/MapExplore";
 
 const NAV = [
-  { to: "/feed", label: "Feed", icon: "🗺" },
+  { to: "/map", label: "Map", icon: "🗺" },
+  { to: "/feed", label: "Feed", icon: "📰" },
   { to: "/collections", label: "Collections", icon: "📚" },
   { to: "/nearby", label: "Nearby", icon: "📍" },
   { to: "/friends", label: "Friends", icon: "👥" },
@@ -119,7 +121,15 @@ export default function App() {
         path="/"
         element={
           <ProtectedRoute>
-            <Navigate to="/feed" replace />
+            <Navigate to="/map" replace />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/map"
+        element={
+          <ProtectedRoute>
+            <Layout><MapExplore /></Layout>
           </ProtectedRoute>
         }
       />
@@ -163,7 +173,7 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      <Route path="*" element={<Navigate to="/feed" replace />} />
+      <Route path="*" element={<Navigate to="/map" replace />} />
     </Routes>
   );
 }

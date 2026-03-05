@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.models.friendship import Friendship, FriendshipStatus
 from app.models.map_collection import MapCollection
 from app.models.place import Place, PlaceType
 from app.models.user import User
@@ -152,6 +153,7 @@ def list_places_global(
     q: str | None = Query(None, description="Search by name or address"),
     collection_id: int | None = Query(None),
     owner_id: int | None = Query(None, description="Places from this user's collections"),
+    source: str | None = Query(None, pattern="^(mine|friends)$", description="'mine' = own places, 'friends' = places from accepted friends"),
     sort: str = Query("recent", pattern="^(recent|name)$"),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -177,8 +179,28 @@ def list_places_global(
         stmt = stmt.where(or_(Place.name.ilike(q_like), Place.address.ilike(q_like)))
     if collection_id is not None:
         stmt = stmt.where(Place.collection_id == collection_id)
+
+    # owner_id takes precedence over source
     if owner_id is not None:
         stmt = stmt.where(MapCollection.owner_id == owner_id)
+    elif source == "mine":
+        stmt = stmt.where(MapCollection.owner_id == current_user.id)
+    elif source == "friends":
+        friendships = db.execute(
+            select(Friendship).where(
+                or_(
+                    Friendship.requester_id == current_user.id,
+                    Friendship.addressee_id == current_user.id,
+                ),
+                Friendship.status == FriendshipStatus.accepted,
+            )
+        ).scalars().all()
+        friend_ids = set()
+        for f in friendships:
+            friend_ids.add(f.requester_id if f.requester_id != current_user.id else f.addressee_id)
+        if not friend_ids:
+            return []
+        stmt = stmt.where(MapCollection.owner_id.in_(friend_ids))
 
     if sort == "name":
         stmt = stmt.order_by(Place.name.asc())

@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import api from "../api/axios";
 import { createPlace } from "../api/places";
+import { getCollections } from "../api/collections";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -252,6 +253,14 @@ export default function AddPlaceModal({ collectionId, onClose, onAdded, initialL
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [collections, setCollections] = useState(null);
+  const [selectedCollId, setSelectedCollId] = useState(collectionId ?? null);
+
+  useEffect(() => {
+    if (!collectionId) {
+      getCollections().then(setCollections).catch(() => {});
+    }
+  }, [collectionId]);
 
   function handleChange(e) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -306,9 +315,14 @@ export default function AddPlaceModal({ collectionId, onClose, onAdded, initialL
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    const targetCollId = selectedCollId ?? collectionId;
+    if (!targetCollId) {
+      setError("Please select a collection.");
+      return;
+    }
     setLoading(true);
     try {
-      const place = await createPlace(collectionId, {
+      const place = await createPlace(targetCollId, {
         name: form.name,
         description: form.description || null,
         address: form.address || null,
@@ -338,6 +352,34 @@ export default function AddPlaceModal({ collectionId, onClose, onAdded, initialL
         </div>
 
         <form onSubmit={handleSubmit} className="overflow-y-auto px-6 pb-6 space-y-3">
+          {!collectionId && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Collection *</label>
+              {collections === null ? (
+                <p className="text-xs text-gray-400">Loading collections…</p>
+              ) : collections.length === 0 ? (
+                <p className="text-xs text-amber-600">You have no collections yet — create one first in Collections.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {collections.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setSelectedCollId(c.id)}
+                      className={`rounded-full border px-3 py-1 text-xs font-medium transition-all ${
+                        selectedCollId === c.id
+                          ? "border-indigo-600 bg-indigo-50 text-indigo-700"
+                          : "border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100"
+                      }`}
+                    >
+                      {c.title}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700">Name *</label>
             <input

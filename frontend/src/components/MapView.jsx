@@ -1,31 +1,59 @@
-import { useState, useCallback } from "react";
-import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from "@react-google-maps/api";
+import { useEffect } from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
-const MAP_LIBRARIES = ["places"];
-const MAP_STYLE = { width: "100%", height: "100%" };
-const DEFAULT_CENTER = { lat: 32.0853, lng: 34.7818 }; // Tel Aviv
+// Fix Leaflet's broken default icon paths when bundled with Vite
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
+
+const DEFAULT_CENTER = { lat: 32.0853, lng: 34.7818 };
 
 const TYPE_COLORS = {
   food: "#f97316",
   travel: "#3b82f6",
   shop: "#a855f7",
   hangout: "#22c55e",
+  exercise: "#ef4444",
 };
 
-function getMarkerIcon(color) {
-  return {
-    path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z",
-    fillColor: color,
-    fillOpacity: 1,
-    strokeColor: "#fff",
-    strokeWeight: 1.5,
-    scale: 1.6,
-    anchor: { x: 12, y: 22 },
-  };
+function coloredMarker(color) {
+  return L.divIcon({
+    className: "",
+    html: `<div style="width:14px;height:14px;background:${color};border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  });
+}
+
+function MapClickHandler({ onMapClick }) {
+  useMapEvents({
+    click(e) {
+      onMapClick(e.latlng.lat, e.latlng.lng);
+    },
+  });
+  return null;
+}
+
+function CenterUpdater({ center }) {
+  const map = useMap();
+  useEffect(() => {
+    if (center) {
+      map.flyTo([center.lat, center.lng], map.getZoom(), { animate: true, duration: 0.8 });
+    }
+  }, [center, map]);
+  return null;
 }
 
 /**
- * MapView — renders a Google Map with markers for each place.
+ * MapView — renders a Leaflet/OpenStreetMap map with markers for each place.
  *
  * Props:
  *   places        — array of PlaceOut objects
@@ -43,106 +71,60 @@ export default function MapView({
   onMapClick,
   markerColor,
 }) {
-  const { isLoaded, loadError } = useJsApiLoader({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "",
-    libraries: MAP_LIBRARIES,
-  });
-
-  const [selected, setSelected] = useState(null);
-
-  const onLoad = useCallback(() => {}, []);
-  const onUnmount = useCallback(() => {}, []);
-
-  function handleMarkerClick(place) {
-    setSelected(place);
-    onMarkerClick?.(place);
-  }
-
-  function handleMapClick(e) {
-    if (!onMapClick) return;
-    const lat = e.latLng.lat();
-    const lng = e.latLng.lng();
-    onMapClick(lat, lng);
-  }
-
   function getColor(place) {
     if (markerColor) return markerColor(place);
     return TYPE_COLORS[place.type] ?? "#4f46e5";
   }
 
-  const mapCenter =
+  const initialCenter =
     center ??
     (places.length > 0 ? { lat: places[0].lat, lng: places[0].lng } : DEFAULT_CENTER);
 
-  if (loadError) {
-    return (
-      <div
-        className="flex items-center justify-center rounded-xl bg-red-50 text-sm text-red-500"
-        style={{ height }}
-      >
-        Failed to load Google Maps. Check your API key.
-      </div>
-    );
-  }
-
-  if (!isLoaded) {
-    return (
-      <div
-        className="flex items-center justify-center rounded-xl bg-gray-100 text-sm text-gray-400"
-        style={{ height }}
-      >
-        Loading map…
-      </div>
-    );
-  }
-
   return (
     <div className="overflow-hidden rounded-xl shadow-md" style={{ height }}>
-      <GoogleMap
-        mapContainerStyle={MAP_STYLE}
-        center={mapCenter}
+      <MapContainer
+        center={[initialCenter.lat, initialCenter.lng]}
         zoom={places.length > 0 ? 13 : 12}
-        onLoad={onLoad}
-        onUnmount={onUnmount}
-        onClick={handleMapClick}
-        options={{
-          streetViewControl: false,
-          mapTypeControl: false,
-          fullscreenControl: true,
-          clickableIcons: false,
-          cursor: onMapClick ? "crosshair" : undefined,
-        }}
+        style={{ width: "100%", height: "100%" }}
       >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+
+        {center && <CenterUpdater center={center} />}
+        {onMapClick && <MapClickHandler onMapClick={onMapClick} />}
+
         {places.map((place) => (
           <Marker
             key={place.id}
-            position={{ lat: place.lat, lng: place.lng }}
-            title={place.name}
-            icon={getMarkerIcon(getColor(place))}
-            onClick={() => handleMarkerClick(place)}
-          />
-        ))}
-
-        {selected && (
-          <InfoWindow
-            position={{ lat: selected.lat, lng: selected.lng }}
-            onCloseClick={() => setSelected(null)}
+            position={[place.lat, place.lng]}
+            icon={coloredMarker(getColor(place))}
+            eventHandlers={{ click: () => onMarkerClick?.(place) }}
           >
-            <div className="max-w-xs p-1">
-              <p className="font-semibold text-gray-900">{selected.name}</p>
-              {selected.address && (
-                <p className="mt-0.5 text-sm text-gray-500">{selected.address}</p>
-              )}
-              {selected.description && (
-                <p className="mt-1 text-sm text-gray-400">{selected.description}</p>
-              )}
-              {selected.collection_title && (
-                <p className="mt-1 text-xs text-indigo-500">📚 {selected.collection_title}</p>
-              )}
-            </div>
-          </InfoWindow>
-        )}
-      </GoogleMap>
+            <Popup>
+              <div className="max-w-xs">
+                <p className="font-semibold text-gray-900">{place.name}</p>
+                {place.address && (
+                  <p className="mt-0.5 text-sm text-gray-500">{place.address}</p>
+                )}
+                {place.description && (
+                  <p className="mt-1 text-sm text-gray-400">{place.description}</p>
+                )}
+                {place.collection_title && (
+                  <a
+                    href={`/collections/${place.collection_id}`}
+                    className="mt-1 block text-xs text-indigo-500 hover:underline"
+                  >
+                    📚 {place.collection_title}
+                    {place.owner_username && ` · by ${place.owner_username}`}
+                  </a>
+                )}
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+      </MapContainer>
     </div>
   );
 }

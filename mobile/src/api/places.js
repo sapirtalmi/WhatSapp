@@ -22,3 +22,6 @@ export const getPlacesInBbox = (minLng, minLat, maxLng, maxLat, type) =>
       params: { min_lng: minLng, min_lat: minLat, max_lng: maxLng, max_lat: maxLat, ...(type && { type }) },
     })
     .then((r) => r.data);
+
+export const getGlobalPlaces = (params = {}) =>
+  api.get("/places", { params }).then((r) => r.data);

@@ -12,6 +12,7 @@ const TYPE_FILTERS = [
   { value: null, label: "All" },
   { value: "food", label: "🍽 Food" },
   { value: "travel", label: "✈️ Travel" },
+  { value: "exercise", label: "🏋 Exercise" },
   { value: "shop", label: "🛍 Shop" },
   { value: "hangout", label: "☕️ Hangout" },
 ];
@@ -19,6 +20,7 @@ const TYPE_FILTERS = [
 const TYPE_COLORS = {
   food: "#f97316",
   travel: "#3b82f6",
+  exercise: "#ef4444",
   shop: "#a855f7",
   hangout: "#22c55e",
 };
