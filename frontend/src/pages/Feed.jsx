@@ -1,166 +1,203 @@
-import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { getFeed } from "../api/feed";
-import MapView from "../components/MapView";
+import { useCallback, useEffect, useState } from "react";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
+import { useAuth } from "../context/AuthContext";
+import { getFriends } from "../api/friends";
+import { getGlobalPlaces } from "../api/places";
 
-const PAGE_SIZE = 20;
+// Fix Leaflet default icon
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({ iconRetinaUrl: markerIcon2x, iconUrl: markerIcon, shadowUrl: markerShadow });
 
 const TYPE_FILTERS = [
-  { value: null, label: "All" },
-  { value: "food", label: "🍽 Food" },
-  { value: "travel", label: "✈️ Travel" },
-  { value: "exercise", label: "🏋 Exercise" },
-  { value: "shop", label: "🛍 Shop" },
-  { value: "hangout", label: "☕️ Hangout" },
+  { value: null,       label: "All types", color: "#6366f1" },
+  { value: "food",     label: "🍽 Food",   color: "#f97316" },
+  { value: "travel",   label: "✈️ Travel", color: "#3b82f6" },
+  { value: "exercise", label: "🏋 Exercise",color: "#ef4444" },
+  { value: "shop",     label: "🛍 Shop",   color: "#a855f7" },
+  { value: "hangout",  label: "☕ Hangout", color: "#22c55e" },
 ];
 
-const TYPE_STYLES = {
-  food: { badge: "bg-orange-100 text-orange-700", border: "border-l-orange-400" },
-  travel: { badge: "bg-blue-100 text-blue-700", border: "border-l-blue-400" },
-  exercise: { badge: "bg-red-100 text-red-700", border: "border-l-red-400" },
-  shop: { badge: "bg-purple-100 text-purple-700", border: "border-l-purple-400" },
-  hangout: { badge: "bg-green-100 text-green-700", border: "border-l-green-400" },
+const TYPE_COLORS = {
+  food: "#f97316", travel: "#3b82f6", exercise: "#ef4444", shop: "#a855f7", hangout: "#22c55e",
 };
 
-function PlaceCard({ place }) {
-  const style = TYPE_STYLES[place.type] ?? { badge: "bg-gray-100 text-gray-600", border: "border-l-gray-300" };
-  return (
-    <div className={`rounded-xl border border-gray-100 bg-white shadow-sm border-l-4 ${style.border} p-4 transition-all duration-150 hover:shadow-md hover:scale-[1.005]`}>
-      <div className="flex items-start justify-between gap-2">
-        <p className="font-semibold text-gray-900 leading-snug">{place.name}</p>
-        {place.type && (
-          <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${style.badge}`}>
-            {TYPE_FILTERS.find((f) => f.value === place.type)?.label ?? place.type}
-          </span>
-        )}
-      </div>
-      {place.address && (
-        <p className="mt-1 text-sm text-gray-500">{place.address}</p>
-      )}
-      {place.description && (
-        <p className="mt-1.5 text-sm text-gray-400 line-clamp-2">{place.description}</p>
-      )}
-      {(place.collection_title || place.owner_username) && (
-        <p className="mt-2 text-xs text-indigo-500">
-          {place.collection_title && <span>📚 {place.collection_title}</span>}
-          {place.collection_title && place.owner_username && <span className="text-gray-300 mx-1">·</span>}
-          {place.owner_username && <span>by {place.owner_username}</span>}
-        </p>
-      )}
-    </div>
-  );
+const DEFAULT_CENTER = [32.0853, 34.7818];
+
+function coloredMarker(color) {
+  return L.divIcon({
+    className: "",
+    html: `<div style="width:14px;height:14px;background:${color};border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  });
 }
 
 export default function Feed() {
-  const [places, setPlaces] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState("");
-  const [hasMore, setHasMore] = useState(true);
-  const [view, setView] = useState("list");
+  const { user } = useAuth();
+  const [friends, setFriends] = useState([]);
+  const [selectedUser, setSelectedUser] = useState("all"); // "all" | "mine" | userId(int)
   const [activeType, setActiveType] = useState(null);
+  const [places, setPlaces] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState(null);
 
-  function loadData(offset, type, reset) {
-    if (offset === 0) setLoading(true);
-    else setLoadingMore(true);
-    return getFeed(PAGE_SIZE, offset, type)
-      .then((data) => {
-        setPlaces((prev) => (reset || offset === 0 ? data : [...prev, ...data]));
-        setHasMore(data.length === PAGE_SIZE);
-      })
-      .catch(() => setError("Failed to load feed."))
-      .finally(() => { setLoading(false); setLoadingMore(false); });
-  }
-
+  // Load friends once
   useEffect(() => {
-    loadData(0, activeType, true);
-  }, [activeType]);
+    getFriends().then(setFriends).catch(() => {});
+  }, []);
+
+  const loadPlaces = useCallback(async () => {
+    setLoading(true);
+    setSelected(null);
+    try {
+      const params = { limit: 200 };
+      if (activeType) params.type = activeType;
+
+      if (selectedUser === "mine") {
+        setPlaces(await getGlobalPlaces({ ...params, source: "mine" }));
+      } else if (selectedUser === "all") {
+        const [mine, friendsPlaces] = await Promise.all([
+          getGlobalPlaces({ ...params, source: "mine" }),
+          getGlobalPlaces({ ...params, source: "friends" }),
+        ]);
+        const seen = new Set();
+        setPlaces([...mine, ...friendsPlaces].filter((p) => {
+          if (seen.has(p.id)) return false;
+          seen.add(p.id);
+          return true;
+        }));
+      } else {
+        setPlaces(await getGlobalPlaces({ ...params, owner_id: selectedUser }));
+      }
+    } catch {
+      setPlaces([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedUser, activeType]);
+
+  useEffect(() => { loadPlaces(); }, [loadPlaces]);
 
   return (
-    <div className="px-4 py-6 max-w-3xl mx-auto">
-      <div className="mb-5 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">Feed</h1>
-        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm shadow-sm">
-          <button
-            onClick={() => setView("list")}
-            className={`px-3 py-1.5 transition-colors ${view === "list" ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
-          >
-            ☰ List
-          </button>
-          <button
-            onClick={() => setView("map")}
-            className={`px-3 py-1.5 transition-colors ${view === "map" ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}
-          >
-            🗺 Map
-          </button>
-        </div>
-      </div>
+    <div className="relative h-[calc(100vh-3.5rem)] md:h-screen overflow-hidden">
 
-      <div className="mb-5 flex flex-wrap gap-2">
-        {TYPE_FILTERS.map((f) => (
+      {/* Floating filter bar */}
+      <div className="absolute top-3 left-1/2 z-[1000] -translate-x-1/2 w-[calc(100%-24px)] max-w-2xl rounded-2xl border border-gray-200 bg-white/97 px-3 py-2.5 shadow-lg backdrop-blur space-y-2">
+        <div className="flex flex-wrap gap-1.5 items-center">
           <button
-            key={String(f.value)}
-            onClick={() => { setActiveType(f.value); setError(""); }}
-            className={`rounded-full border px-3.5 py-1 text-sm font-medium transition-all ${
-              activeType === f.value
-                ? "border-indigo-600 bg-indigo-600 text-white shadow-sm"
-                : "border-gray-200 bg-white text-gray-600 hover:border-indigo-300 hover:text-indigo-600"
+            onClick={() => setSelectedUser("all")}
+            className={`rounded-full border px-3 py-0.5 text-xs font-semibold transition-all ${
+              selectedUser === "all"
+                ? "bg-indigo-600 border-indigo-600 text-white"
+                : "border-gray-200 bg-white text-gray-600 hover:border-indigo-300"
             }`}
           >
-            {f.label}
+            🌍 All
           </button>
-        ))}
+          <button
+            onClick={() => setSelectedUser("mine")}
+            className={`rounded-full border px-3 py-0.5 text-xs font-semibold transition-all ${
+              selectedUser === "mine"
+                ? "bg-slate-800 border-slate-800 text-white"
+                : "border-gray-200 bg-white text-gray-600 hover:border-gray-400"
+            }`}
+          >
+            👤 Mine
+          </button>
+          {friends.map((f) => {
+            const isActive = selectedUser === f.user.id;
+            return (
+              <button
+                key={f.id}
+                onClick={() => setSelectedUser(isActive ? "all" : f.user.id)}
+                className={`rounded-full border px-3 py-0.5 text-xs font-semibold transition-all ${
+                  isActive
+                    ? "bg-blue-500 border-blue-500 text-white"
+                    : "border-gray-200 bg-white text-gray-600 hover:border-blue-300"
+                }`}
+              >
+                {f.user.username}
+              </button>
+            );
+          })}
+
+          <span className="h-4 w-px bg-gray-200 mx-0.5" />
+
+          {TYPE_FILTERS.map((t) => {
+            const isActive = activeType === t.value;
+            return (
+              <button
+                key={String(t.value)}
+                onClick={() => setActiveType(t.value)}
+                style={isActive ? { backgroundColor: t.color, borderColor: t.color } : {}}
+                className={`rounded-full border px-3 py-0.5 text-xs font-semibold transition-all ${
+                  isActive ? "text-white" : "border-gray-200 bg-white text-gray-600 hover:border-indigo-300"
+                }`}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {error && <p className="mb-4 text-sm text-red-500">{error}</p>}
+      {/* Place count badge */}
+      <div className="absolute right-4 top-3 z-[1000] rounded-full border border-gray-200 bg-white/90 px-2.5 py-1 text-xs text-gray-500 shadow">
+        {loading
+          ? <span className="inline-block h-3 w-3 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin align-middle" />
+          : `${places.length} place${places.length !== 1 ? "s" : ""}`
+        }
+      </div>
 
-      {loading && (
-        <div className="space-y-3">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-20 rounded-xl bg-gray-100 animate-pulse" />
-          ))}
-        </div>
-      )}
+      {/* Map */}
+      <MapContainer center={DEFAULT_CENTER} zoom={6} style={{ width: "100%", height: "100%" }}>
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        {places.map((place) => (
+          <Marker
+            key={place.id}
+            position={[place.lat, place.lng]}
+            icon={coloredMarker(TYPE_COLORS[place.type] ?? "#4f46e5")}
+            eventHandlers={{ click: () => setSelected(place) }}
+          >
+            {selected?.id === place.id && (
+              <Popup position={[place.lat, place.lng]} onClose={() => setSelected(null)}>
+                <div className="max-w-[220px]">
+                  <p className="font-semibold text-gray-900">{place.name}</p>
+                  {place.address && (
+                    <p className="mt-0.5 text-sm text-gray-500">{place.address}</p>
+                  )}
+                  {place.description && (
+                    <p className="mt-1 text-sm text-gray-400 line-clamp-2">{place.description}</p>
+                  )}
+                  {place.collection_title && (
+                    <a
+                      href={`/collections/${place.collection_id}`}
+                      className="mt-1.5 block text-xs text-indigo-500 hover:underline"
+                    >
+                      📚 {place.collection_title}
+                      {place.owner_username && ` · by ${place.owner_username}`}
+                    </a>
+                  )}
+                </div>
+              </Popup>
+            )}
+          </Marker>
+        ))}
+      </MapContainer>
 
       {!loading && places.length === 0 && (
-        <div className="mt-20 text-center">
-          <p className="text-4xl mb-3">🗺</p>
-          <p className="text-lg font-semibold text-gray-600">Your feed is empty</p>
-          <p className="mt-1 text-sm text-gray-400">Add friends or create public collections to see places here.</p>
-          <div className="mt-5 flex justify-center gap-3">
-            <Link to="/friends" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">
-              Find friends
-            </Link>
-            <Link to="/collections" className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
-              My collections
-            </Link>
-          </div>
+        <div className="absolute bottom-6 left-1/2 z-[1000] -translate-x-1/2 rounded-2xl border border-gray-200 bg-white/95 px-5 py-3 text-center shadow-lg">
+          <p className="text-sm font-semibold text-gray-700">No places found</p>
+          <p className="text-xs text-gray-400 mt-0.5">Add friends or switch filters to see places</p>
         </div>
-      )}
-
-      {!loading && view === "map" && (
-        <MapView places={places} height="520px" />
-      )}
-
-      {!loading && places.length > 0 && view === "list" && (
-        <>
-          <div className="space-y-3">
-            {places.map((place) => (
-              <PlaceCard key={place.id} place={place} />
-            ))}
-          </div>
-          {hasMore && (
-            <div className="mt-6 text-center">
-              <button
-                onClick={() => loadData(places.length, activeType, false)}
-                disabled={loadingMore}
-                className="rounded-lg border border-gray-300 bg-white px-5 py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 shadow-sm"
-              >
-                {loadingMore ? "Loading…" : "Load more"}
-              </button>
-            </div>
-          )}
-        </>
       )}
     </div>
   );

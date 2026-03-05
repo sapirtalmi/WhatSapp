@@ -16,4 +16,23 @@ class UserOut(BaseModel):
     is_active: bool
     created_at: datetime
 
+    # Profile fields
+    bio: str | None = None
+    age: int | None = None
+    hobbies: list[str] | None = None
+    study: str | None = None
+    work: str | None = None
+    living: str | None = None
+    preferred_types: list[str] | None = None
+
     model_config = {"from_attributes": True}
+
+
+class UserUpdate(BaseModel):
+    bio: str | None = None
+    age: int | None = None
+    hobbies: list[str] | None = None
+    study: str | None = None
+    work: str | None = None
+    living: str | None = None
+    preferred_types: list[str] | None = None

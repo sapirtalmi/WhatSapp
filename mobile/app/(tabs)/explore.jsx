@@ -17,7 +17,6 @@ import {
 import MapView, { Marker, Callout } from "react-native-maps";
 import * as Location from "expo-location";
 import { getNearbyPlaces, createPlace, getGlobalPlaces } from "../../src/api/places";
-import { getCollections } from "../../src/api/collections";
 import { useAuth } from "../../src/context/AuthContext";
 import api from "../../src/api/axios";
 
@@ -156,7 +155,8 @@ export default function ExploreScreen() {
   }, [source, activeType]);
 
   useEffect(() => {
-    getCollections().then((cols) => {
+    api.get("/collections", { params: { mine_only: true } }).then((r) => {
+      const cols = r.data;
       setCollections(cols);
       if (cols.length > 0) setSelectedCollection(cols[0].id);
     }).catch(() => {});
@@ -193,11 +193,22 @@ export default function ExploreScreen() {
 
   const visiblePlaces = activeType ? allPlaces.filter((p) => p.type === activeType) : allPlaces;
 
-  function handleMapPress(e) {
+  async function handleMapPress(e) {
     const { latitude, longitude } = e.nativeEvent.coordinate;
     setPendingPin({ latitude, longitude });
-    setPlaceName(""); setPlaceAddress(""); setPlaceType(null); setExtraData({});
+    setPlaceName(""); setPlaceAddress("Getting address…"); setPlaceType(null); setExtraData({});
     setShowAddModal(true);
+    try {
+      const [result] = await Location.reverseGeocodeAsync({ latitude, longitude });
+      if (result) {
+        const parts = [result.street, result.city].filter(Boolean);
+        setPlaceAddress(parts.join(", ") || "");
+      } else {
+        setPlaceAddress("");
+      }
+    } catch {
+      setPlaceAddress("");
+    }
   }
 
   function handlePlaceTypeChange(newType) {
@@ -265,7 +276,10 @@ export default function ExploreScreen() {
       setAllPlaces((prev) => [...prev, newPlace]);
       setShowAddModal(false);
       setPendingPin(null);
-    } catch { Alert.alert("Error", "Failed to add place."); } finally { setSaving(false); }
+    } catch (err) {
+      const msg = err?.response?.data?.detail ?? err?.message ?? "Failed to add place.";
+      Alert.alert("Error", String(msg));
+    } finally { setSaving(false); }
   }
 
   function cancelAdd() { setShowAddModal(false); setPendingPin(null); }
@@ -470,8 +484,10 @@ export default function ExploreScreen() {
               </Text>
             )}
 
-            <TextInput style={styles.input} placeholder="Place name *" value={placeName} onChangeText={setPlaceName} />
-            <TextInput style={styles.input} placeholder="Address (optional)" value={placeAddress} onChangeText={setPlaceAddress} />
+            <Text style={styles.sectionLabel}>Place name *</Text>
+            <TextInput style={styles.input} placeholder="e.g. Coffee Aroma" value={placeName} onChangeText={setPlaceName} />
+            <Text style={styles.sectionLabel}>Address</Text>
+            <TextInput style={styles.input} placeholder="e.g. 12 Herzl St, Tel Aviv" value={placeAddress} onChangeText={setPlaceAddress} />
 
             <Text style={styles.sectionLabel}>Collection *</Text>
             <ScrollView

@@ -10,6 +10,7 @@ import Nearby from "./pages/Nearby";
 import Friends from "./pages/Friends";
 import Feed from "./pages/Feed";
 import MapExplore from "./pages/MapExplore";
+import Profile from "./pages/Profile";
 
 const NAV = [
   { to: "/map", label: "Map", icon: "🗺" },
@@ -17,6 +18,7 @@ const NAV = [
   { to: "/collections", label: "Collections", icon: "📚" },
   { to: "/nearby", label: "Nearby", icon: "📍" },
   { to: "/friends", label: "Friends", icon: "👥" },
+  { to: "/profile", label: "Profile", icon: "👤" },
 ];
 
 function Sidebar({ open, onClose }) {
@@ -72,11 +74,22 @@ function Sidebar({ open, onClose }) {
 
         {/* User footer */}
         <div className="border-t border-slate-700 px-4 py-4">
-          <p className="text-xs text-slate-400 mb-1">Signed in as</p>
-          <p className="text-sm font-semibold truncate">{user?.username}</p>
+          <NavLink
+            to="/profile"
+            onClick={onClose}
+            className="flex items-center gap-2.5 rounded-lg px-2 py-2 hover:bg-slate-800 transition-colors group"
+          >
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-indigo-500 text-sm font-bold text-white">
+              {user?.username?.[0]?.toUpperCase() ?? "?"}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold truncate text-white">{user?.username}</p>
+              <p className="text-[10px] text-slate-400">View profile</p>
+            </div>
+          </NavLink>
           <button
             onClick={handleLogout}
-            className="mt-3 w-full rounded-lg bg-slate-800 px-3 py-2 text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+            className="mt-2 w-full rounded-lg bg-slate-800 px-3 py-2 text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
           >
             Sign out
           </button>
@@ -170,6 +183,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Layout><Friends /></Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <Layout><Profile /></Layout>
           </ProtectedRoute>
         }
       />
