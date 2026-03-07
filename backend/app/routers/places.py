@@ -155,7 +155,7 @@ def list_places_global(
     owner_id: int | None = Query(None, description="Places from this user's collections"),
     source: str | None = Query(None, pattern="^(mine|friends)$", description="'mine' = own places, 'friends' = places from accepted friends"),
     sort: str = Query("recent", pattern="^(recent|name)$"),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

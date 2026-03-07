@@ -8,13 +8,11 @@ import Collections from "./pages/Collections";
 import CollectionDetail from "./pages/CollectionDetail";
 import Nearby from "./pages/Nearby";
 import Friends from "./pages/Friends";
-import Feed from "./pages/Feed";
-import MapExplore from "./pages/MapExplore";
+import Explore from "./pages/Explore";
 import Profile from "./pages/Profile";
 
 const NAV = [
-  { to: "/map", label: "Map", icon: "🗺" },
-  { to: "/feed", label: "Feed", icon: "📰" },
+  { to: "/explore", label: "Explore", icon: "🧭" },
   { to: "/collections", label: "Collections", icon: "📚" },
   { to: "/nearby", label: "Nearby", icon: "📍" },
   { to: "/friends", label: "Friends", icon: "👥" },
@@ -134,23 +132,15 @@ export default function App() {
         path="/"
         element={
           <ProtectedRoute>
-            <Navigate to="/map" replace />
+            <Navigate to="/explore" replace />
           </ProtectedRoute>
         }
       />
       <Route
-        path="/map"
+        path="/explore"
         element={
           <ProtectedRoute>
-            <Layout><MapExplore /></Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/feed"
-        element={
-          <ProtectedRoute>
-            <Layout><Feed /></Layout>
+            <Layout><Explore /></Layout>
           </ProtectedRoute>
         }
       />
@@ -194,7 +184,7 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      <Route path="*" element={<Navigate to="/map" replace />} />
+      <Route path="*" element={<Navigate to="/explore" replace />} />
     </Routes>
   );
 }
