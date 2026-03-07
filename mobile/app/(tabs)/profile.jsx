@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
@@ -10,14 +11,19 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActionSheetIOS,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "../../src/context/AuthContext";
 import { getMe, updateMe } from "../../src/api/users";
 import { getCollections } from "../../src/api/collections";
+import api from "../../src/api/axios";
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000";
 import { getFriends } from "../../src/api/friends";
 import { getGlobalPlaces } from "../../src/api/places";
 
@@ -179,6 +185,47 @@ export default function ProfileScreen() {
     router.replace("/login");
   }
 
+  async function pickAvatar(useCamera) {
+    const perm = useCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) return;
+    const result = useCamera
+      ? await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.8 })
+      : await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.8 });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    const fd = new FormData();
+    fd.append("file", { uri: asset.uri, name: "photo.jpg", type: "image/jpeg" });
+    try {
+      const res = await api.post("/uploads/photo", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      const updated = await updateMe({ avatar_url: res.data.url });
+      setProfile(updated);
+    } catch (err) {
+      console.error("pickAvatar error", err?.response?.status, JSON.stringify(err?.response?.data), err?.message);
+      const detail = err?.response?.data?.detail;
+      const msg = Array.isArray(detail)
+        ? detail.map((d) => d.msg || JSON.stringify(d)).join("\n")
+        : detail ? String(detail) : (err?.message ?? "Upload failed.");
+      Alert.alert("Upload failed", msg);
+    }
+  }
+
+  function handleAvatarPress() {
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: ["Cancel", "Take Photo", "Choose from Library"], cancelButtonIndex: 0 },
+        (idx) => { if (idx === 1) pickAvatar(true); else if (idx === 2) pickAvatar(false); }
+      );
+    } else {
+      Alert.alert("Update Photo", "", [
+        { text: "Take Photo", onPress: () => pickAvatar(true) },
+        { text: "Choose from Library", onPress: () => pickAvatar(false) },
+        { text: "Cancel", style: "cancel" },
+      ]);
+    }
+  }
+
   const p = profile ?? authUser;
   const color = avatarColor(p?.username);
   const letter = (p?.username?.[0] ?? "?").toUpperCase();
@@ -200,11 +247,21 @@ export default function ProfileScreen() {
           style={[styles.hero, { paddingTop: insets.top + 16 }]}
         >
           {/* Avatar */}
-          <View style={[styles.avatarRing]}>
-            <View style={[styles.avatar, { backgroundColor: color }]}>
-              <Text style={styles.avatarLetter}>{letter}</Text>
+          <TouchableOpacity style={styles.avatarRing} onPress={handleAvatarPress} activeOpacity={0.85}>
+            {profile?.avatar_url ? (
+              <Image
+                source={{ uri: API_URL + profile.avatar_url }}
+                style={styles.avatarImage}
+              />
+            ) : (
+              <View style={[styles.avatar, { backgroundColor: color }]}>
+                <Text style={styles.avatarLetter}>{letter}</Text>
+              </View>
+            )}
+            <View style={styles.cameraOverlay}>
+              <Text style={{ fontSize: 13 }}>📷</Text>
             </View>
-          </View>
+          </TouchableOpacity>
 
           {/* Name */}
           <Text style={styles.heroName}>{p?.username}</Text>
@@ -434,6 +491,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   avatarLetter: { fontSize: 40, color: "#fff", fontWeight: "800" },
+  avatarImage: { width: 96, height: 96, borderRadius: 48 },
+  cameraOverlay: {
+    position: "absolute", bottom: 2, right: 2,
+    backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 14,
+    width: 28, height: 28, justifyContent: "center", alignItems: "center",
+  },
   heroName: { fontSize: 26, fontWeight: "800", color: "#fff", marginBottom: 8 },
   heroSubRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 2 },
   heroSub: { fontSize: 13, color: "rgba(255,255,255,0.85)", textAlign: "center" },

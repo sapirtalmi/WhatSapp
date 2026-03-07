@@ -23,8 +23,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
-
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(collections.router)
@@ -33,6 +31,8 @@ app.include_router(friends.router)
 app.include_router(feed.router)
 app.include_router(saved.router)
 app.include_router(uploads.router)
+
+app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
 
 @app.get("/health")

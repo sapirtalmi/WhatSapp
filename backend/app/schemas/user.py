@@ -17,6 +17,7 @@ class UserOut(BaseModel):
     created_at: datetime
 
     # Profile fields
+    avatar_url: str | None = None
     bio: str | None = None
     age: int | None = None
     hobbies: list[str] | None = None
@@ -29,6 +30,7 @@ class UserOut(BaseModel):
 
 
 class UserUpdate(BaseModel):
+    avatar_url: str | None = None
     bio: str | None = None
     age: int | None = None
     hobbies: list[str] | None = None
