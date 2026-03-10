@@ -14,6 +14,7 @@ import {
   ActionSheetIOS,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -28,9 +29,11 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000";
 import { getFriends } from "../../src/api/friends";
 import { getGlobalPlaces } from "../../src/api/places";
 
-const ACTIVITY_EMOJIS = {
-  coffee: "☕", drinks: "🍺", study: "📚", hike: "🥾",
-  food: "🍕", event: "🎉", hangout: "🛋️", work: "💼", other: "🌀",
+const ACTIVITY_ICONS = {
+  coffee: "cafe-outline", drinks: "wine-outline", study: "book-outline",
+  hike: "walk-outline", food: "restaurant-outline", event: "star-outline",
+  hangout: "people-outline", work: "briefcase-outline",
+  other: "ellipsis-horizontal-circle-outline",
 };
 
 const PLACE_TYPES = [
@@ -289,37 +292,6 @@ export default function ProfileScreen() {
           ) : null}
         </LinearGradient>
 
-        {/* ── Active status banner ─────────────────────────────────────── */}
-        {myStatus && (
-          <View style={{ marginHorizontal: 20, marginBottom: 12, borderRadius: 16, overflow: "hidden" }}>
-            <LinearGradient
-              colors={myStatus.mode === "live" ? ["#22c55e", "#16a34a"] : ["#8b5cf6", "#6d28d9"]}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={{ flexDirection: "row", alignItems: "center", padding: 14, justifyContent: "space-between" }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
-                <Text style={{ fontSize: 20, marginRight: 10 }}>
-                  {myStatus.mode === "live" ? "🟢" : "📅"}
-                </Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>
-                    {myStatus.mode === "live" ? "Active Now" : "Upcoming Plan"}
-                  </Text>
-                  <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 12 }} numberOfLines={1}>
-                    {ACTIVITY_EMOJIS[myStatus.activity_type]} {myStatus.message || myStatus.activity_type}
-                  </Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                onPress={async () => { await updateStatus(myStatus.id, { is_active: false }); setMyStatus(null); }}
-                style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 10 }}
-              >
-                <Text style={{ color: "#fff", fontWeight: "600", fontSize: 12 }}>End</Text>
-              </TouchableOpacity>
-            </LinearGradient>
-          </View>
-        )}
-
         {/* ── Stats row ───────────────────────────────────────────────── */}
         <View style={styles.statsRow}>
           <View style={styles.statBox}>
@@ -340,6 +312,63 @@ export default function ProfileScreen() {
             <Text style={styles.statLabel}>Friends</Text>
           </View>
         </View>
+
+        {/* ── Active status banner ─────────────────────────────────────── */}
+        {myStatus && (() => {
+          const isLive = myStatus.mode === "live";
+          const accent = isLive ? "#F4743B" : "#7C5CBF";
+          const bg = isLive ? "#FFF8F5" : "#F5F3FF";
+          return (
+            <View style={{
+              marginHorizontal: 16, marginTop: 12,
+              backgroundColor: bg, borderRadius: 18,
+              padding: 14,
+              borderWidth: 1, borderColor: accent + "25",
+              borderLeftWidth: 3, borderLeftColor: accent,
+              shadowColor: accent, shadowOpacity: 0.08,
+              shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 3,
+            }}>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <View style={{
+                  width: 38, height: 38, borderRadius: 19,
+                  backgroundColor: accent + "18",
+                  alignItems: "center", justifyContent: "center",
+                  marginRight: 12,
+                }}>
+                  <Ionicons
+                    name={ACTIVITY_ICONS[myStatus.activity_type] ?? "ellipsis-horizontal-circle-outline"}
+                    size={19} color={accent}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: accent }} />
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: accent, textTransform: "uppercase", letterSpacing: 0.7 }}>
+                      {isLive ? "Active Now" : "Upcoming Plan"}
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: 14, color: "#374151", fontWeight: "500" }} numberOfLines={1}>
+                    {myStatus.message || myStatus.activity_type}
+                  </Text>
+                  {myStatus.location_name ? (
+                    <Text style={{ fontSize: 12, color: "#9CA3AF", marginTop: 2 }} numberOfLines={1}>
+                      📍 {myStatus.location_name}
+                    </Text>
+                  ) : null}
+                </View>
+                <TouchableOpacity
+                  onPress={async () => { await updateStatus(myStatus.id, { is_active: false }); setMyStatus(null); }}
+                  style={{
+                    marginLeft: 10, paddingHorizontal: 12, paddingVertical: 6,
+                    borderRadius: 99, borderWidth: 1, borderColor: accent + "50",
+                  }}
+                >
+                  <Text style={{ color: accent, fontWeight: "600", fontSize: 12 }}>End</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          );
+        })()}
 
         {/* ── About card ──────────────────────────────────────────────── */}
         {(profile?.age || profile?.study || profile?.work || profile?.living) ? (
