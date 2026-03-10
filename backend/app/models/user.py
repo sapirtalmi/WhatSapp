@@ -37,3 +37,4 @@ class User(Base):
     saved_collections: Mapped[list["SavedCollection"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    statuses: Mapped[list["UserStatus"]] = relationship(back_populates="user", cascade="all, delete-orphan")

@@ -4,11 +4,13 @@ import { useAuth } from "../context/AuthContext";
 import { getCollections } from "../api/collections";
 import CollectionModal from "../components/CollectionModal";
 
-const ACCENT_COLORS = [
-  "from-indigo-500 to-indigo-600",
-  "from-violet-500 to-violet-600",
-  "from-sky-500 to-sky-600",
-  "from-emerald-500 to-emerald-600",
+const COVER_GRADIENTS = [
+  "from-indigo-500 via-violet-500 to-purple-600",
+  "from-rose-500 via-pink-500 to-orange-400",
+  "from-teal-500 via-cyan-500 to-sky-500",
+  "from-violet-500 via-fuchsia-500 to-pink-500",
+  "from-amber-500 via-orange-400 to-yellow-400",
+  "from-emerald-500 via-teal-500 to-cyan-400",
 ];
 
 const TABS = [
@@ -19,45 +21,44 @@ const TABS = [
 ];
 
 function CollectionCard({ collection, currentUserId }) {
-  const accent = ACCENT_COLORS[collection.id % ACCENT_COLORS.length];
+  const cover = COVER_GRADIENTS[collection.id % COVER_GRADIENTS.length];
   const isOwner = collection.owner_id === currentUserId;
 
   return (
     <Link
       to={`/collections/${collection.id}`}
-      className="group block rounded-2xl overflow-hidden border border-gray-100 bg-white shadow-sm transition-all duration-150 hover:shadow-lg hover:scale-[1.02]"
+      className="group block rounded-2xl overflow-hidden bg-white shadow-md hover:shadow-xl transition-all duration-200 hover:-translate-y-1"
     >
-      {/* Color accent bar */}
-      <div className={`h-1.5 w-full bg-gradient-to-r ${accent}`} />
-
-      <div className="p-5">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="font-semibold text-gray-900 line-clamp-1 group-hover:text-indigo-700 transition-colors">
-            {collection.title}
-          </h3>
-          <span
-            className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
-              collection.is_public
-                ? "bg-emerald-100 text-emerald-700"
-                : "bg-gray-100 text-gray-500"
-            }`}
-          >
-            {collection.is_public ? "Public" : "Private"}
+      {/* Gradient cover */}
+      <div className={`relative h-20 w-full bg-gradient-to-br ${cover}`}>
+        {/* Privacy badge */}
+        <span className={`absolute top-2.5 right-2.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold backdrop-blur-sm ${
+          collection.is_public
+            ? "bg-white/25 text-white border border-white/30"
+            : "bg-black/20 text-white/90 border border-white/20"
+        }`}>
+          {collection.is_public ? "Public" : "Private"}
+        </span>
+        {/* Place count */}
+        {collection.place_count != null && (
+          <span className="absolute bottom-2.5 left-3 rounded-full bg-black/20 backdrop-blur-sm px-2 py-0.5 text-[10px] font-semibold text-white border border-white/20">
+            📍 {collection.place_count} place{collection.place_count !== 1 ? "s" : ""}
           </span>
-        </div>
+        )}
+      </div>
+
+      <div className="p-4">
+        <h3 className="font-bold text-gray-900 line-clamp-1 group-hover:text-indigo-700 transition-colors text-[15px]">
+          {collection.title}
+        </h3>
 
         {collection.description && (
-          <p className="mt-1.5 text-sm text-gray-500 line-clamp-2">{collection.description}</p>
+          <p className="mt-1 text-xs text-gray-400 line-clamp-2 leading-relaxed">{collection.description}</p>
         )}
 
-        <div className="mt-3 flex items-center justify-between text-xs text-gray-400">
-          <span>
-            {collection.place_count != null ? `${collection.place_count} place${collection.place_count !== 1 ? "s" : ""}` : ""}
-          </span>
-          {!isOwner && collection.owner_username && (
-            <span className="text-indigo-400">by {collection.owner_username}</span>
-          )}
-        </div>
+        {!isOwner && collection.owner_username && (
+          <p className="mt-2 text-xs font-medium text-indigo-400">by {collection.owner_username}</p>
+        )}
       </div>
     </Link>
   );
@@ -155,10 +156,14 @@ export default function Collections() {
 
       {!loading && !error && filtered.length === 0 && (
         <div className="mt-20 text-center">
-          <p className="text-4xl mb-3">📚</p>
-          <p className="text-gray-500">
+          <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl text-3xl mb-4"
+               style={{ background: "linear-gradient(135deg, #6366f1, #a855f7)" }}>
+            📚
+          </div>
+          <p className="font-semibold text-gray-600">
             {search ? "No collections match your search." : "No collections yet."}
           </p>
+          {!search && <p className="text-sm text-gray-400 mt-1">Tap + to create your first one</p>}
         </div>
       )}
 
@@ -171,7 +176,8 @@ export default function Collections() {
       {/* FAB */}
       <button
         onClick={() => setShowModal(true)}
-        className="fixed bottom-8 right-8 flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-2xl text-white shadow-lg hover:bg-indigo-700 transition-all hover:scale-110"
+        className="fixed bottom-8 right-8 flex h-14 w-14 items-center justify-center rounded-full text-2xl text-white transition-all hover:scale-110 hover:shadow-2xl"
+        style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)", boxShadow: "0 8px 24px rgba(99,102,241,0.45)" }}
         title="New collection"
       >
         +

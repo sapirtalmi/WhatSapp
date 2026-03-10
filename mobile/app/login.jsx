@@ -6,9 +6,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
+  ScrollView,
   Platform,
   Alert,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useAuth } from "../src/context/AuthContext";
 
@@ -17,6 +19,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [focusedField, setFocusedField] = useState(null);
 
   async function handleLogin() {
     if (!email || !password) return;
@@ -33,85 +36,158 @@ export default function Login() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={styles.root}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <Text style={styles.title}>WhatSapp</Text>
-      <Text style={styles.subtitle}>Sign in to continue</Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-
-      <TouchableOpacity
-        style={[styles.button, loading && styles.buttonDisabled]}
-        onPress={handleLogin}
-        disabled={loading}
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.buttonText}>{loading ? "Signing in…" : "Sign in"}</Text>
-      </TouchableOpacity>
+        {/* Logo */}
+        <View style={styles.logoWrap}>
+          <LinearGradient
+            colors={["#34d399", "#2dd4bf"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.logoCircle}
+          >
+            <Text style={styles.logoEmoji}>🗺</Text>
+          </LinearGradient>
+        </View>
 
-      <TouchableOpacity onPress={() => router.push("/register")}>
-        <Text style={styles.link}>Don't have an account? Register</Text>
-      </TouchableOpacity>
+        <Text style={styles.title}>WhatSapp</Text>
+        <Text style={styles.subtitle}>Explore together</Text>
+
+        {/* Inputs */}
+        <View style={styles.form}>
+          <TextInput
+            style={[styles.input, focusedField === "email" && styles.inputFocused]}
+            placeholder="Email"
+            placeholderTextColor="#b0b7c3"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            onFocus={() => setFocusedField("email")}
+            onBlur={() => setFocusedField(null)}
+          />
+          <TextInput
+            style={[styles.input, focusedField === "password" && styles.inputFocused]}
+            placeholder="Password"
+            placeholderTextColor="#b0b7c3"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            onFocus={() => setFocusedField("password")}
+            onBlur={() => setFocusedField(null)}
+          />
+
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+            activeOpacity={0.88}
+          >
+            <Text style={styles.buttonText}>
+              {loading ? "Signing in…" : "Sign in →"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Footer */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Don't have an account?</Text>
+          <TouchableOpacity onPress={() => router.push("/register")}>
+            <Text style={styles.footerLink}>Create one →</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: "#ffffff" },
   container: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: "center",
-    padding: 24,
-    backgroundColor: "#f9fafb",
+    paddingHorizontal: 32,
+    paddingTop: 80,
+    paddingBottom: 48,
   },
+
+  // Logo
+  logoWrap: { alignItems: "center", marginBottom: 24 },
+  logoCircle: {
+    width: 72, height: 72, borderRadius: 36,
+    alignItems: "center", justifyContent: "center",
+    shadowColor: "#2dd4bf", shadowOpacity: 0.35,
+    shadowRadius: 20, shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
+  },
+  logoEmoji: { fontSize: 32 },
+
+  // Headlines
   title: {
-    fontSize: 32,
-    fontWeight: "bold",
+    fontSize: 36,
+    fontWeight: "900",
+    color: "#0f172a",
     textAlign: "center",
-    marginBottom: 4,
-    color: "#111827",
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 14,
+    color: "#94a3b8",
     textAlign: "center",
-    color: "#6b7280",
-    marginBottom: 32,
+    marginTop: 4,
+    marginBottom: 40,
+    fontWeight: "500",
   },
+
+  // Form
+  form: { gap: 12 },
   input: {
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    fontSize: 14,
-    backgroundColor: "#fff",
+    height: 52,
+    borderWidth: 1.5,
+    borderColor: "#e8e8e8",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: "#0f172a",
+    backgroundColor: "#ffffff",
   },
+  inputFocused: {
+    borderColor: "#0f172a",
+  },
+
+  // Button
   button: {
-    backgroundColor: "#4f46e5",
-    borderRadius: 8,
-    padding: 14,
+    height: 52,
+    backgroundColor: "#0f172a",
+    borderRadius: 14,
     alignItems: "center",
+    justifyContent: "center",
     marginTop: 4,
   },
-  buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: "#fff", fontWeight: "600", fontSize: 15 },
-  link: {
-    marginTop: 16,
-    textAlign: "center",
-    color: "#4f46e5",
-    fontSize: 13,
+  buttonDisabled: { opacity: 0.5 },
+  buttonText: {
+    color: "#ffffff",
+    fontWeight: "700",
+    fontSize: 16,
+    letterSpacing: 0.1,
+  },
+
+  // Footer
+  footer: {
+    marginTop: 36,
+    alignItems: "center",
+    gap: 4,
+  },
+  footerText: { fontSize: 14, color: "#94a3b8" },
+  footerLink: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0d9488",
   },
 });

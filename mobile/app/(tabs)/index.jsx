@@ -14,14 +14,19 @@ import {
   Modal,
   KeyboardAvoidingView,
   Alert,
+  Animated,
 } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "../../src/context/AuthContext";
 import { getFriends } from "../../src/api/friends";
 import { getGlobalPlaces, createPlace } from "../../src/api/places";
+import { getLocationInfo, getRecommendations, naturalSearch } from "../../src/api/ai";
+import { createStatus, getStatusFeed, getMyStatus, updateStatus, rsvpStatus } from "../../src/api/status";
 import api from "../../src/api/axios";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -33,7 +38,7 @@ const MAP_TYPES = [
 ];
 
 const TYPE_FILTERS = [
-  { value: null,       label: "All",      color: "#6366f1" },
+  { value: null,       label: "All",      color: "#2dd4bf" },
   { value: "food",     label: "🍽 Food",  color: "#f97316" },
   { value: "travel",   label: "✈️ Travel",color: "#3b82f6" },
   { value: "exercise", label: "🏋 Gym",   color: "#ef4444" },
@@ -51,7 +56,7 @@ const DEFAULT_REGION = {
   latitudeDelta: 12, longitudeDelta: 12,
 };
 
-const AVATAR_COLORS = ["#6366f1","#f97316","#22c55e","#3b82f6","#a855f7","#ec4899"];
+const AVATAR_COLORS = ["#2dd4bf","#f97316","#22c55e","#3b82f6","#a855f7","#ec4899"];
 function avatarColor(name) {
   return AVATAR_COLORS[(name?.charCodeAt(0) ?? 0) % AVATAR_COLORS.length];
 }
@@ -88,13 +93,371 @@ function FilterChip({ label, active, color, onPress, initial, avatarBg }) {
   );
 }
 
+function AICard({ icon, title, text }) {
+  return (
+    <View style={styles.aiCard}>
+      <Text style={styles.aiCardTitle}>{icon}  {title}</Text>
+      <Text style={styles.aiCardText}>{text}</Text>
+    </View>
+  );
+}
+
+// ── Status helpers ─────────────────────────────────────────────────────────────
+const ACTIVITY_ICONS = {
+  coffee:  "cafe-outline",
+  drinks:  "wine-outline",
+  study:   "book-outline",
+  hike:    "walk-outline",
+  food:    "restaurant-outline",
+  event:   "star-outline",
+  hangout: "people-outline",
+  work:    "briefcase-outline",
+  other:   "ellipsis-horizontal-circle-outline",
+};
+
+function timeLeft(expiresAt) {
+  const diff = new Date(expiresAt) - new Date();
+  if (diff <= 0) return "expired";
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+// ── PulsingMarker ──────────────────────────────────────────────────────────────
+function PulsingMarker({ color }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(0.6)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(scale, { toValue: 1.6, duration: 1200, useNativeDriver: true }),
+          Animated.timing(scale, { toValue: 1.0, duration: 1200, useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(opacity, { toValue: 0, duration: 1200, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0.5, duration: 1200, useNativeDriver: true }),
+        ]),
+      ])
+    ).start();
+  }, []);
+  return (
+    <View style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
+      <Animated.View style={{
+        position: "absolute", width: 28, height: 28, borderRadius: 14,
+        backgroundColor: color, opacity, transform: [{ scale }],
+      }} />
+      <View style={{
+        width: 16, height: 16, borderRadius: 8,
+        backgroundColor: color, borderWidth: 2.5, borderColor: "#fff",
+        shadowColor: color, shadowOpacity: 0.45, shadowRadius: 6, elevation: 5,
+      }} />
+    </View>
+  );
+}
+
+// ── PostStatusModal ────────────────────────────────────────────────────────────
+function PostStatusModal({ visible, onClose, myStatus, onPosted, pinnedLocation, onPickLocation }) {
+  const [mode, setMode] = useState("live");
+  const [activityType, setActivityType] = useState("coffee");
+  const [message, setMessage] = useState("");
+  const [locationName, setLocationName] = useState("");
+  const [expiry, setExpiry] = useState("1h");
+  const [planDate, setPlanDate] = useState(new Date(Date.now() + 86400000));
+  const [visibility, setVisibility] = useState("friends");
+  const [posting, setPosting] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [gpsLocation, setGpsLocation] = useState(null);
+
+  // Pre-fetch GPS when modal opens
+  useEffect(() => {
+    if (visible) {
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+        .then((pos) => setGpsLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }))
+        .catch(() => {});
+    }
+  }, [visible]);
+
+  // Sync location name from map pin
+  useEffect(() => {
+    if (pinnedLocation?.name) setLocationName(pinnedLocation.name);
+  }, [pinnedLocation]);
+
+  const effectiveLoc = pinnedLocation ?? gpsLocation;
+
+  const handlePost = async () => {
+    if (!effectiveLoc) {
+      Alert.alert("Location needed", "Could not get your location. Please allow location access or pick a point on the map.");
+      return;
+    }
+    setPosting(true);
+    try {
+      const body = {
+        mode,
+        activity_type: activityType,
+        message: message.trim() || null,
+        lat: effectiveLoc.lat,
+        lng: effectiveLoc.lng,
+        location_name: locationName.trim() || null,
+        expires_at: mode === "live" ? expiry : planDate.toISOString(),
+        visibility,
+      };
+      await createStatus(body);
+      onPosted();
+      onClose();
+      setMessage("");
+      setLocationName("");
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      const msg = Array.isArray(detail)
+        ? detail.map((d) => d.msg || JSON.stringify(d)).join("\n")
+        : detail ? String(detail) : "Could not post status. Try again.";
+      Alert.alert("Error", msg);
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const activities = [
+    ["coffee", "Coffee"], ["drinks", "Drinks"], ["study", "Study"],
+    ["hike", "Hike"], ["food", "Food"], ["event", "Event"],
+    ["hangout", "Hangout"], ["work", "Work"], ["other", "Other"],
+  ];
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <View style={{ flex: 1, backgroundColor: "#F7F5F0" }}>
+          {/* Header */}
+          <View style={{
+            flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+            paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16,
+            backgroundColor: "#FFFFFF",
+            borderBottomWidth: 1, borderBottomColor: "#EDE9E3",
+          }}>
+            <TouchableOpacity onPress={onClose}>
+              <Text style={{ color: "#6B7280", fontSize: 16 }}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={{ fontWeight: "600", fontSize: 17, color: "#1C1C1E" }}>Where are you?</Text>
+            <TouchableOpacity onPress={handlePost} disabled={posting}>
+              <Text style={{ color: posting ? "#9CA3AF" : "#00A878", fontWeight: "700", fontSize: 16 }}>
+                {posting ? "Posting…" : "Post"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView contentContainerStyle={{ padding: 20, gap: 20 }}>
+            {/* Mode toggle */}
+            <View style={{ flexDirection: "row", backgroundColor: "#EDE9E3", borderRadius: 50, padding: 4 }}>
+              {[["live", "Live Now", "radio-button-on-outline"], ["plan", "Future Plan", "calendar-outline"]].map(([m, label, icon]) => (
+                <TouchableOpacity
+                  key={m}
+                  onPress={() => setMode(m)}
+                  style={{
+                    flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 50,
+                    flexDirection: "row", justifyContent: "center", gap: 6,
+                    backgroundColor: mode === m ? "#fff" : "transparent",
+                    shadowColor: mode === m ? "#000" : "transparent",
+                    shadowOpacity: mode === m ? 0.08 : 0, shadowRadius: 6, elevation: mode === m ? 3 : 0,
+                  }}
+                >
+                  <Ionicons name={icon} size={15} color={mode === m ? "#1C1C1E" : "#9CA3AF"} />
+                  <Text style={{ fontWeight: "600", color: mode === m ? "#1C1C1E" : "#6B7280" }}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Activity type selector */}
+            <View>
+              <Text style={{ fontWeight: "700", color: "#A09A93", marginBottom: 10, fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase" }}>ACTIVITY</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {activities.map(([type, label]) => {
+                    const selected = activityType === type;
+                    return (
+                      <TouchableOpacity
+                        key={type}
+                        onPress={() => setActivityType(type)}
+                        style={{
+                          paddingHorizontal: 14, paddingVertical: 10, borderRadius: 50,
+                          backgroundColor: selected ? "#E8F7F2" : "#fff",
+                          borderWidth: 1.5, borderColor: selected ? "#00A878" : "#EDE9E3",
+                          alignItems: "center", minWidth: 66,
+                        }}
+                      >
+                        <Ionicons
+                          name={ACTIVITY_ICONS[type]}
+                          size={20}
+                          color={selected ? "#00A878" : "#9CA3AF"}
+                        />
+                        <Text style={{ fontSize: 10, fontWeight: "600", color: selected ? "#00A878" : "#6B7280", marginTop: 4 }}>
+                          {label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </View>
+
+            {/* Message */}
+            <View style={{
+              backgroundColor: "#fff", borderRadius: 16, padding: 14,
+              shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
+            }}>
+              <TextInput
+                placeholder="Say something… (optional)"
+                placeholderTextColor="#9CA3AF"
+                value={message}
+                onChangeText={setMessage}
+                maxLength={280}
+                multiline
+                style={{ color: "#1C1C1E", fontSize: 15, minHeight: 60 }}
+              />
+            </View>
+
+            {/* Location row */}
+            <View style={{
+              backgroundColor: "#fff", borderRadius: 16,
+              shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
+              overflow: "hidden",
+            }}>
+              <View style={{ flexDirection: "row", alignItems: "center", padding: 14 }}>
+                <Ionicons name="location-outline" size={18} color="#00A878" style={{ marginRight: 8 }} />
+                <TextInput
+                  placeholder="Location name (optional)"
+                  placeholderTextColor="#9CA3AF"
+                  value={locationName}
+                  onChangeText={setLocationName}
+                  style={{ flex: 1, color: "#1C1C1E", fontSize: 15 }}
+                />
+              </View>
+              <View style={{ height: 1, backgroundColor: "#F3F0EA", marginHorizontal: 14 }} />
+              <TouchableOpacity
+                onPress={onPickLocation}
+                style={{ flexDirection: "row", alignItems: "center", padding: 14, gap: 8 }}
+              >
+                <Ionicons name="map-outline" size={17} color="#7C5CBF" />
+                <Text style={{ fontSize: 14, color: "#7C5CBF", fontWeight: "600" }}>
+                  {pinnedLocation ? "Location pinned on map" : "Pin on map"}
+                </Text>
+                {pinnedLocation && (
+                  <View style={{
+                    marginLeft: "auto", backgroundColor: "#F0EBF8",
+                    borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3,
+                  }}>
+                    <Text style={{ fontSize: 11, color: "#7C5CBF", fontWeight: "600" }}>
+                      {pinnedLocation.lat.toFixed(4)}, {pinnedLocation.lng.toFixed(4)}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* Expiry - Live mode */}
+            {mode === "live" && (
+              <View>
+                <Text style={{ fontWeight: "700", color: "#A09A93", marginBottom: 10, fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase" }}>HOW LONG?</Text>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {[["1h", "1 hour"], ["3h", "3 hours"], ["tonight", "Tonight"]].map(([val, label]) => {
+                    const sel = expiry === val;
+                    return (
+                      <TouchableOpacity
+                        key={val}
+                        onPress={() => setExpiry(val)}
+                        style={{
+                          flex: 1, paddingVertical: 12, borderRadius: 50, alignItems: "center",
+                          backgroundColor: sel ? "#FEF0EA" : "#fff",
+                          borderWidth: 1.5, borderColor: sel ? "#F4743B" : "#EDE9E3",
+                        }}
+                      >
+                        <Text style={{ fontWeight: "600", color: sel ? "#F4743B" : "#6B7280" }}>{label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
+            {/* Date/time picker - Plan mode */}
+            {mode === "plan" && (
+              <View>
+                <Text style={{ fontWeight: "700", color: "#A09A93", marginBottom: 10, fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase" }}>WHEN?</Text>
+                <TouchableOpacity
+                  onPress={() => setShowDatePicker(true)}
+                  style={{
+                    backgroundColor: "#fff", borderRadius: 16, padding: 14,
+                    shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
+                    flexDirection: "row", alignItems: "center", gap: 8,
+                  }}
+                >
+                  <Ionicons name="calendar-outline" size={17} color="#00A878" />
+                  <Text style={{ color: "#1C1C1E", fontSize: 15 }}>
+                    {planDate.toLocaleDateString()} at {planDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </Text>
+                </TouchableOpacity>
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={planDate}
+                    mode="datetime"
+                    minimumDate={new Date()}
+                    onChange={(e, date) => { setShowDatePicker(false); if (date) setPlanDate(date); }}
+                  />
+                )}
+              </View>
+            )}
+
+            {/* Visibility */}
+            <View>
+              <Text style={{ fontWeight: "700", color: "#A09A93", marginBottom: 10, fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase" }}>VISIBILITY</Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                {[["friends", "people-outline", "Friends only"], ["public", "earth-outline", "Public"]].map(([v, icon, label]) => {
+                  const sel = visibility === v;
+                  return (
+                    <TouchableOpacity
+                      key={v}
+                      onPress={() => setVisibility(v)}
+                      style={{
+                        flex: 1, paddingVertical: 12, borderRadius: 50, alignItems: "center",
+                        flexDirection: "row", justifyContent: "center", gap: 6,
+                        backgroundColor: sel ? "#F0EBF8" : "#fff",
+                        borderWidth: 1.5, borderColor: sel ? "#7C5CBF" : "#EDE9E3",
+                      }}
+                    >
+                      <Ionicons name={icon} size={15} color={sel ? "#7C5CBF" : "#9CA3AF"} />
+                      <Text style={{ fontWeight: "600", color: sel ? "#7C5CBF" : "#6B7280", fontSize: 13 }}>{label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* End current status button */}
+            {myStatus && (
+              <TouchableOpacity
+                onPress={async () => { await updateStatus(myStatus.id, { is_active: false }); onPosted(); onClose(); }}
+                style={{ paddingVertical: 12, borderRadius: 50, alignItems: "center", backgroundColor: "#FFF0EE", flexDirection: "row", justifyContent: "center", gap: 6 }}
+              >
+                <Ionicons name="stop-circle-outline" size={16} color="#F4743B" />
+                <Text style={{ color: "#F4743B", fontWeight: "600" }}>End Current Status</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
   const mapRef = useRef(null);
   const searchTimeoutRef = useRef(null);
+  const { user: currentUser } = useAuth();
 
   // Location
   const [locationReady, setLocationReady] = useState(false);
+  const [userLocation, setUserLocation] = useState(null);
 
   // Search
   const [searchText, setSearchText] = useState("");
@@ -115,8 +478,30 @@ export default function ExploreScreen() {
   // Selection
   const [selectedPlace, setSelectedPlace] = useState(null);
 
+  // AI location info
+  const [locationInfo, setLocationInfo] = useState(null);
+  const [locationInfoLoading, setLocationInfoLoading] = useState(false);
+
+  // Natural language search
+  const [nlMode, setNlMode] = useState(false);
+  const [nlQuery, setNlQuery] = useState("");
+  const [nlResults, setNlResults] = useState(null);
+  const [nlLoading, setNlLoading] = useState(false);
+
+  // Recommendations
+  const [recommendations, setRecommendations] = useState(null);
+  const [recsLoading, setRecsLoading] = useState(false);
+
   // Map type
   const [mapType, setMapType] = useState("standard");
+
+  // Statuses
+  const [statuses, setStatuses] = useState([]);
+  const [myStatus, setMyStatus] = useState(null);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState(null);
+  const [pickingStatusPin, setPickingStatusPin] = useState(false);
+  const [pendingStatusPin, setPendingStatusPin] = useState(null);
 
   // Add place
   const [pendingPin, setPendingPin] = useState(null);
@@ -137,6 +522,7 @@ export default function ExploreScreen() {
       if (status === "granted") {
         const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
         setLocationReady(true);
+        setUserLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
         mapRef.current?.animateToRegion({
           latitude: loc.coords.latitude,
           longitude: loc.coords.longitude,
@@ -156,6 +542,7 @@ export default function ExploreScreen() {
 
   // ── Load places ───────────────────────────────────────────────────────
   const loadPlaces = useCallback(async () => {
+    if (selectedUser === "recs") return;
     setLoading(true);
     setSelectedPlace(null);
     try {
@@ -186,6 +573,29 @@ export default function ExploreScreen() {
   }, [selectedUser, activeType]);
 
   useEffect(() => { loadPlaces(); }, [loadPlaces]);
+
+  // ── Status feed ───────────────────────────────────────────────────────
+  const loadStatuses = useCallback(async () => {
+    try {
+      const [feed, my] = await Promise.all([getStatusFeed(), getMyStatus()]);
+      setStatuses(feed || []);
+      setMyStatus(my || null);
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => {
+    loadStatuses();
+    const interval = setInterval(loadStatuses, 30000);
+    return () => clearInterval(interval);
+  }, [loadStatuses]);
+
+  const handleRsvp = async (statusId, response) => {
+    try {
+      await rsvpStatus(statusId, response);
+      await loadStatuses();
+      setSelectedStatus(prev => prev ? { ...prev, my_rsvp: response } : null);
+    } catch {}
+  };
 
   // ── Nominatim search ──────────────────────────────────────────────────
   function handleSearchChange(text) {
@@ -221,6 +631,12 @@ export default function ExploreScreen() {
       latitude: lat, longitude: lng,
       latitudeDelta: 0.06, longitudeDelta: 0.06,
     }, 700);
+    setLocationInfo(null);
+    setLocationInfoLoading(true);
+    getLocationInfo(label, lat, lng)
+      .then(setLocationInfo)
+      .catch(() => {})
+      .finally(() => setLocationInfoLoading(false));
   }
 
   function clearSearch() {
@@ -228,11 +644,60 @@ export default function ExploreScreen() {
     setSearchResults([]);
     setShowResults(false);
     setSearchPin(null);
+    setLocationInfo(null);
+    setLocationInfoLoading(false);
+    setNlMode(false);
+    setNlQuery("");
+    setNlResults(null);
+  }
+
+  async function handleNlSearch() {
+    if (!nlQuery.trim()) return;
+    Keyboard.dismiss();
+    setNlLoading(true);
+    setNlResults(null);
+    try {
+      const results = await naturalSearch(nlQuery.trim(), userLocation?.lat ?? null, userLocation?.lng ?? null);
+      setNlResults(results);
+    } catch {
+      Alert.alert("AI Search", "Could not complete the search. Try again.");
+    } finally {
+      setNlLoading(false);
+    }
+  }
+
+  async function handleRecommendations() {
+    if (recsLoading) return;
+    setRecsLoading(true);
+    setRecommendations(null);
+    try {
+      const data = await getRecommendations();
+      setRecommendations(data.recommendations);
+    } catch {
+      Alert.alert("AI", "Could not load recommendations. Try again.");
+      setSelectedUser("all");
+    } finally {
+      setRecsLoading(false);
+    }
   }
 
   // ── Add place ─────────────────────────────────────────────────────────
   async function handleMapPress(e) {
     const { latitude, longitude } = e.nativeEvent.coordinate;
+
+    // Status pin picking mode
+    if (pickingStatusPin) {
+      setPickingStatusPin(false);
+      let name = "";
+      try {
+        const [result] = await Location.reverseGeocodeAsync({ latitude, longitude });
+        name = result ? [result.name, result.street, result.city].filter(Boolean).join(", ") || "" : "";
+      } catch {}
+      setPendingStatusPin({ lat: latitude, lng: longitude, name });
+      setShowStatusModal(true);
+      return;
+    }
+
     setSelectedPlace(null);
     setShowResults(false);
     Keyboard.dismiss();
@@ -331,7 +796,7 @@ export default function ExploreScreen() {
         {searchPin && (
           <Marker
             coordinate={{ latitude: searchPin.lat, longitude: searchPin.lng }}
-            pinColor="#6366f1"
+            pinColor="#2dd4bf"
             title={searchPin.label}
           />
         )}
@@ -345,10 +810,28 @@ export default function ExploreScreen() {
           <Marker
             key={place.id}
             coordinate={{ latitude: place.lat, longitude: place.lng }}
-            onPress={(e) => { e.stopPropagation?.(); setSelectedPlace(place); }}
+            onPress={(e) => {
+              e.stopPropagation?.();
+              setSelectedPlace(place);
+              mapRef.current?.animateToRegion({
+                latitude: place.lat, longitude: place.lng,
+                latitudeDelta: 0.012, longitudeDelta: 0.012,
+              }, 500);
+            }}
             tracksViewChanges={false}
           >
-            <DotMarker color={TYPE_COLORS[place.type] ?? "#6366f1"} />
+            <DotMarker color={TYPE_COLORS[place.type] ?? "#2dd4bf"} />
+          </Marker>
+        ))}
+        {statuses.map((s) => (
+          <Marker
+            key={`status-${s.id}`}
+            coordinate={{ latitude: s.lat, longitude: s.lng }}
+            onPress={() => setSelectedStatus(s)}
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges={false}
+          >
+            <PulsingMarker color={s.mode === "live" ? "#F4743B" : "#7C5CBF"} />
           </Marker>
         ))}
       </MapView>
@@ -366,13 +849,45 @@ export default function ExploreScreen() {
             returnKeyType="search"
             clearButtonMode="never"
           />
-          {searchLoading && <ActivityIndicator size="small" color="#6366f1" style={{ marginLeft: 4 }} />}
+          {searchLoading && <ActivityIndicator size="small" color="#2dd4bf" style={{ marginLeft: 4 }} />}
           {!searchLoading && searchText.length > 0 && (
             <TouchableOpacity onPress={clearSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="close-circle" size={17} color="#d1d5db" />
             </TouchableOpacity>
           )}
+          <TouchableOpacity
+            onPress={() => { setNlMode((v) => !v); setNlQuery(""); setNlResults(null); }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={[styles.nlToggleBtn, nlMode && styles.nlToggleBtnActive]}
+          >
+            <Text style={{ fontSize: 14 }}>✨</Text>
+          </TouchableOpacity>
         </View>
+
+        {/* NL search row */}
+        {nlMode && (
+          <View style={styles.nlRow}>
+            <TextInput
+              style={styles.nlInput}
+              placeholder="e.g. cozy coffee shops near me…"
+              placeholderTextColor="#9ca3af"
+              value={nlQuery}
+              onChangeText={setNlQuery}
+              returnKeyType="search"
+              onSubmitEditing={handleNlSearch}
+              autoFocus
+            />
+            <TouchableOpacity
+              onPress={handleNlSearch}
+              disabled={nlLoading || !nlQuery.trim()}
+              style={[styles.nlSendBtn, (!nlQuery.trim() || nlLoading) && { opacity: 0.4 }]}
+            >
+              {nlLoading
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Ionicons name="send" size={15} color="#fff" />}
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Results dropdown */}
         {showResults && (
@@ -412,13 +927,13 @@ export default function ExploreScreen() {
           <FilterChip
             label="Everyone"
             active={selectedUser === "all"}
-            color="#4f46e5"
+            color="#2dd4bf"
             onPress={() => setSelectedUser("all")}
           />
           <FilterChip
             label="My Places"
             active={selectedUser === "mine"}
-            color="#0f172a"
+            color="#34d399"
             onPress={() => setSelectedUser("mine")}
           />
           {friends.map((f) => {
@@ -435,6 +950,20 @@ export default function ExploreScreen() {
               />
             );
           })}
+          <FilterChip
+            label="For you ✨"
+            active={selectedUser === "recs"}
+            color="#f59e0b"
+            onPress={() => {
+              if (selectedUser === "recs") {
+                setSelectedUser("all");
+                setRecommendations(null);
+              } else {
+                setSelectedUser("recs");
+                handleRecommendations();
+              }
+            }}
+          />
 
           <View style={styles.chipDivider} />
 
@@ -450,22 +979,41 @@ export default function ExploreScreen() {
         </ScrollView>
       </View>
 
-      {/* ── Bottom sheet ────────────────────────────────────────────── */}
+      {/* ── Map type toggle ─────────────────────────────────────────── */}
+      <TouchableOpacity
+        style={[styles.mapTypeBtn, { bottom: 130 }]}
+        onPress={() => setMapType((t) => {
+          const idx = MAP_TYPES.findIndex((m) => m.value === t);
+          return MAP_TYPES[(idx + 1) % MAP_TYPES.length].value;
+        })}
+      >
+        <Text style={styles.mapTypeBtnIcon}>
+          {MAP_TYPES.find((m) => m.value === mapType)?.icon}
+        </Text>
+        <Text style={styles.mapTypeBtnLabel}>
+          {MAP_TYPES.find((m) => m.value === mapType)?.label}
+        </Text>
+      </TouchableOpacity>
+
+      {/* ── Bottom sheet ─────────────────────────────────────────────── */}
       {selectedPlace ? (
-        /* Expanded: place preview */
+        /* ── Expanded: DB place detail ── */
         <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
           <View style={styles.sheetHandle} />
-          <TouchableOpacity style={styles.sheetClose} onPress={() => setSelectedPlace(null)}>
-            <Ionicons name="close-circle" size={22} color="#d1d5db" />
+          <TouchableOpacity
+            style={styles.sheetClose}
+            onPress={() => setSelectedPlace(null)}
+          >
+            <Ionicons name="close-circle" size={24} color="#d1d5db" />
           </TouchableOpacity>
 
           <View style={styles.sheetTypeBadge}>
             <View style={[
               styles.typePill,
-              { borderColor: TYPE_COLORS[selectedPlace.type] ?? "#6366f1" },
-              { backgroundColor: (TYPE_COLORS[selectedPlace.type] ?? "#6366f1") + "18" },
+              { borderColor: TYPE_COLORS[selectedPlace.type] ?? "#2dd4bf" },
+              { backgroundColor: (TYPE_COLORS[selectedPlace.type] ?? "#2dd4bf") + "18" },
             ]}>
-              <Text style={[styles.typePillText, { color: TYPE_COLORS[selectedPlace.type] ?? "#6366f1" }]}>
+              <Text style={[styles.typePillText, { color: TYPE_COLORS[selectedPlace.type] ?? "#2dd4bf" }]}>
                 {TYPE_FILTERS.find((t) => t.value === selectedPlace.type)?.label ?? selectedPlace.type ?? "Place"}
               </Text>
             </View>
@@ -482,16 +1030,129 @@ export default function ExploreScreen() {
             <Text style={styles.sheetCollection}>📚 {selectedPlace.collection_title}</Text>
           ) : null}
         </View>
+      ) : searchPin && (locationInfoLoading || locationInfo) ? (
+        /* ── AI location info sheet ── */
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
+          <View style={styles.sheetHandle} />
+          <TouchableOpacity style={styles.sheetClose} onPress={clearSearch}>
+            <Ionicons name="close-circle" size={24} color="#d1d5db" />
+          </TouchableOpacity>
+          <Text style={styles.sheetName}>{searchPin.label}</Text>
+          {locationInfoLoading ? (
+            <View style={{ alignItems: "center", paddingVertical: 30 }}>
+              <ActivityIndicator color="#2dd4bf" size="large" />
+              <Text style={{ color: "#94a3b8", marginTop: 10, fontSize: 13 }}>Getting info…</Text>
+            </View>
+          ) : locationInfo ? (
+            <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 8 }}>
+              <Text style={styles.aiDesc}>{locationInfo.description}</Text>
+              <AICard icon="🗓" title="Best time to visit" text={locationInfo.best_time} />
+              <AICard icon="🎯" title="What to do" text={locationInfo.what_to_do} />
+              <AICard icon="💡" title="Tips" text={locationInfo.tips} />
+              <View style={{ height: 20 }} />
+            </ScrollView>
+          ) : null}
+        </View>
+      ) : (nlLoading || nlResults) ? (
+        /* ── NL search results ── */
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
+          <View style={styles.sheetHandle} />
+          <TouchableOpacity style={styles.sheetClose} onPress={() => { setNlResults(null); setNlMode(false); setNlQuery(""); }}>
+            <Ionicons name="close-circle" size={24} color="#d1d5db" />
+          </TouchableOpacity>
+          <Text style={styles.sheetName}>AI Search</Text>
+          {nlLoading ? (
+            <View style={{ alignItems: "center", paddingVertical: 30 }}>
+              <ActivityIndicator color="#2dd4bf" size="large" />
+              <Text style={{ color: "#94a3b8", marginTop: 10, fontSize: 13 }}>Searching…</Text>
+            </View>
+          ) : nlResults?.length === 0 ? (
+            <Text style={{ color: "#9ca3af", fontSize: 14, textAlign: "center", paddingVertical: 20 }}>
+              No places found. Try a different query.
+            </Text>
+          ) : (
+            <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 8 }}>
+              {nlResults.map((p) => (
+                <TouchableOpacity
+                  key={p.id}
+                  style={styles.nlResultCard}
+                  onPress={() => {
+                    mapRef.current?.animateToRegion({
+                      latitude: p.lat, longitude: p.lng,
+                      latitudeDelta: 0.03, longitudeDelta: 0.03,
+                    }, 600);
+                    setSelectedPlace(p);
+                  }}
+                >
+                  <View style={[styles.nlResultAccent, { backgroundColor: TYPE_COLORS[p.type] ?? "#2dd4bf" }]} />
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Text style={styles.nlResultName} numberOfLines={1}>{p.name}</Text>
+                      {p.type && (
+                        <View style={[styles.nlResultBadge, { backgroundColor: (TYPE_COLORS[p.type] ?? "#2dd4bf") + "20" }]}>
+                          <Text style={[styles.nlResultBadgeText, { color: TYPE_COLORS[p.type] ?? "#2dd4bf" }]}>
+                            {TYPE_FILTERS.find((t) => t.value === p.type)?.label ?? p.type}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    {p.address && <Text style={styles.nlResultAddr} numberOfLines={1}>📍 {p.address}</Text>}
+                    {p.collection_title && <Text style={styles.nlResultColl}>📚 {p.collection_title}</Text>}
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color="#d1d5db" />
+                </TouchableOpacity>
+              ))}
+              <View style={{ height: 20 }} />
+            </ScrollView>
+          )}
+        </View>
+      ) : selectedUser === "recs" ? (
+        /* ── AI Recommendations ── */
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
+          <View style={styles.sheetHandle} />
+          <TouchableOpacity style={styles.sheetClose} onPress={() => { setSelectedUser("all"); setRecommendations(null); }}>
+            <Ionicons name="close-circle" size={24} color="#d1d5db" />
+          </TouchableOpacity>
+          <Text style={styles.sheetName}>For You ✨</Text>
+          {recsLoading ? (
+            <View style={{ alignItems: "center", paddingVertical: 30 }}>
+              <ActivityIndicator color="#f59e0b" size="large" />
+              <Text style={{ color: "#94a3b8", marginTop: 10, fontSize: 13 }}>Finding places for you…</Text>
+            </View>
+          ) : recommendations?.length > 0 ? (
+            <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 8 }}>
+              {recommendations.map((r, i) => (
+                <View key={i} style={styles.recCard}>
+                  <View style={[styles.recAccent, { backgroundColor: TYPE_COLORS[r.type] ?? "#f59e0b" }]} />
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Text style={styles.recName} numberOfLines={1}>{r.name}</Text>
+                      {r.type && (
+                        <View style={[styles.nlResultBadge, { backgroundColor: (TYPE_COLORS[r.type] ?? "#f59e0b") + "20" }]}>
+                          <Text style={[styles.nlResultBadgeText, { color: TYPE_COLORS[r.type] ?? "#f59e0b" }]}>
+                            {TYPE_FILTERS.find((t) => t.value === r.type)?.label ?? r.type}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.recWhy}>{r.why}</Text>
+                    {r.address_hint && <Text style={styles.recAddr}>📍 {r.address_hint}</Text>}
+                  </View>
+                </View>
+              ))}
+              <View style={{ height: 20 }} />
+            </ScrollView>
+          ) : null}
+        </View>
       ) : (
-        /* Collapsed: count + horizontal cards */
+        /* ── Peek: count + horizontal cards ── */
         <View style={[styles.sheetPeek, { paddingBottom: insets.bottom + 12 }]}>
           <View style={styles.sheetHandle} />
-
           <View style={styles.peekHeader}>
             <Text style={styles.peekCount}>
               {loading ? "Loading…" : `${places.length} place${places.length !== 1 ? "s" : ""}`}
             </Text>
-            {loading && <ActivityIndicator size="small" color="#6366f1" />}
+            {loading && <ActivityIndicator size="small" color="#2dd4bf" />}
           </View>
 
           {!loading && places.length > 0 && (
@@ -513,7 +1174,7 @@ export default function ExploreScreen() {
                   activeOpacity={0.8}
                   style={styles.placeCard}
                 >
-                  <View style={[styles.cardDot, { backgroundColor: TYPE_COLORS[item.type] ?? "#6366f1" }]} />
+                  <View style={[styles.cardAccent, { backgroundColor: TYPE_COLORS[item.type] ?? "#2dd4bf" }]} />
                   <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
                   {item.address ? (
                     <Text style={styles.cardAddr} numberOfLines={1}>{item.address}</Text>
@@ -532,21 +1193,152 @@ export default function ExploreScreen() {
         </View>
       )}
 
-      {/* ── Map type toggle ─────────────────────────────────────────── */}
+      {/* ── Broadcast FAB ────────────────────────────────────────────── */}
       <TouchableOpacity
-        style={[styles.mapTypeBtn, { bottom: insets.bottom + 220 }]}
-        onPress={() => setMapType((t) => {
-          const idx = MAP_TYPES.findIndex((m) => m.value === t);
-          return MAP_TYPES[(idx + 1) % MAP_TYPES.length].value;
-        })}
+        style={{
+          position: "absolute", bottom: 130, left: 16, zIndex: 25,
+          width: 52, height: 52, borderRadius: 26,
+          backgroundColor: "#FFFFFF",
+          borderWidth: 2, borderColor: myStatus ? "#F4743B" : "#00A878",
+          alignItems: "center", justifyContent: "center",
+          shadowColor: myStatus ? "#F4743B" : "#00A878", shadowOpacity: 0.3, shadowRadius: 10, elevation: 8,
+        }}
+        onPress={() => setShowStatusModal(true)}
       >
-        <Text style={styles.mapTypeBtnIcon}>
-          {MAP_TYPES.find((m) => m.value === mapType)?.icon}
-        </Text>
-        <Text style={styles.mapTypeBtnLabel}>
-          {MAP_TYPES.find((m) => m.value === mapType)?.label}
-        </Text>
+        <Text style={{ fontSize: 22 }}>{myStatus ? "📍" : "✈️"}</Text>
       </TouchableOpacity>
+
+      {/* ── Status detail card ───────────────────────────────────────── */}
+      {selectedStatus && (
+        <View style={{
+          position: "absolute", bottom: 100, left: 16, right: 16, zIndex: 25,
+          backgroundColor: "#FFFFFF", borderRadius: 24, padding: 16,
+          shadowColor: "#8B7355", shadowOpacity: 0.12, shadowRadius: 16,
+          shadowOffset: { width: 0, height: 4 }, elevation: 10,
+        }}>
+          <TouchableOpacity
+            onPress={() => setSelectedStatus(null)}
+            style={{ position: "absolute", top: 12, right: 12, zIndex: 10 }}
+          >
+            <Text style={{ fontSize: 18, color: "#9CA3AF" }}>✕</Text>
+          </TouchableOpacity>
+
+          {/* Avatar + name */}
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+            <View style={{
+              width: 40, height: 40, borderRadius: 20,
+              backgroundColor: selectedStatus.mode === "live" ? "#F4743B" : "#7C5CBF",
+              alignItems: "center", justifyContent: "center", marginRight: 10,
+            }}>
+              <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>
+                {selectedStatus.username?.[0]?.toUpperCase()}
+              </Text>
+            </View>
+            <View>
+              <Text style={{ fontWeight: "700", color: "#1C1C1E", fontSize: 16 }}>
+                {selectedStatus.username}
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Ionicons name={ACTIVITY_ICONS[selectedStatus.activity_type] ?? "ellipsis-horizontal-circle-outline"} size={13} color="#9CA3AF" />
+                <Text style={{ color: "#6B7280", fontSize: 13 }}>
+                  {selectedStatus.activity_type}
+                  {" · "}
+                  {selectedStatus.mode === "live"
+                    ? `${timeLeft(selectedStatus.expires_at)} left`
+                    : new Date(selectedStatus.expires_at).toLocaleString()}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {selectedStatus.message ? (
+            <View style={{
+              borderLeftWidth: 3,
+              borderLeftColor: selectedStatus.mode === "live" ? "#F4743B" : "#00A878",
+              paddingLeft: 10, marginBottom: 8,
+            }}>
+              <Text style={{ color: "#334155", fontSize: 14, fontStyle: "italic" }}>
+                "{selectedStatus.message}"
+              </Text>
+            </View>
+          ) : null}
+
+          {selectedStatus.location_name ? (
+            <Text style={{ color: "#00A878", fontSize: 12, marginBottom: 8 }}>
+              📍 {selectedStatus.location_name}
+            </Text>
+          ) : null}
+
+          {/* RSVP buttons for plan mode */}
+          {selectedStatus.mode === "plan" && selectedStatus.user_id !== currentUser?.id && (
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+              {[
+                ["going", "checkmark-circle-outline", "I'm in"],
+                ["maybe", "help-circle-outline", "Maybe"],
+                ["no", "close-circle-outline", "Can't"],
+              ].map(([r, icon, label]) => {
+                const sel = selectedStatus.my_rsvp === r;
+                return (
+                  <TouchableOpacity
+                    key={r}
+                    onPress={() => handleRsvp(selectedStatus.id, r)}
+                    style={{
+                      flex: 1, paddingVertical: 8, borderRadius: 50, alignItems: "center",
+                      flexDirection: "row", justifyContent: "center", gap: 4,
+                      backgroundColor: sel ? "#F0EBF8" : "#F7F5F0",
+                      borderWidth: 1.5, borderColor: sel ? "#7C5CBF" : "transparent",
+                    }}
+                  >
+                    <Ionicons name={icon} size={14} color={sel ? "#7C5CBF" : "#9CA3AF"} />
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: sel ? "#7C5CBF" : "#6B7280" }}>
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+
+          {/* RSVP counts */}
+          {selectedStatus.mode === "plan" && (
+            <View style={{ flexDirection: "row", justifyContent: "center", gap: 12, marginTop: 8 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Ionicons name="checkmark-circle-outline" size={13} color="#9CA3AF" />
+                <Text style={{ color: "#9CA3AF", fontSize: 11 }}>{selectedStatus.rsvp_counts?.going || 0} going</Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Ionicons name="help-circle-outline" size={13} color="#9CA3AF" />
+                <Text style={{ color: "#9CA3AF", fontSize: 11 }}>{selectedStatus.rsvp_counts?.maybe || 0} maybe</Text>
+              </View>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* ── Status pin picking hint ───────────────────────────────────── */}
+      {pickingStatusPin && (
+        <View style={{
+          position: "absolute", top: FILTER_TOP + 60, left: 20, right: 20, zIndex: 30,
+          backgroundColor: "#7C5CBF", borderRadius: 18, padding: 16, alignItems: "center",
+          shadowColor: "#7C5CBF", shadowOpacity: 0.4, shadowRadius: 14, elevation: 10,
+        }}>
+          <Ionicons name="location-outline" size={22} color="#fff" style={{ marginBottom: 6 }} />
+          <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>Tap the map to pin your location</Text>
+          <TouchableOpacity onPress={() => { setPickingStatusPin(false); setShowStatusModal(true); }} style={{ marginTop: 8 }}>
+            <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: 12 }}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* ── PostStatusModal ───────────────────────────────────────────── */}
+      <PostStatusModal
+        visible={showStatusModal}
+        onClose={() => { setShowStatusModal(false); setPendingStatusPin(null); }}
+        myStatus={myStatus}
+        onPosted={() => { loadStatuses(); setPendingStatusPin(null); }}
+        pinnedLocation={pendingStatusPin}
+        onPickLocation={() => { setShowStatusModal(false); setPickingStatusPin(true); }}
+      />
 
       {/* ── Add place modal ──────────────────────────────────────────── */}
       <Modal
@@ -678,7 +1470,7 @@ export default function ExploreScreen() {
 const CARD_W = 150;
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#f1f5f9" },
+  root: { flex: 1, backgroundColor: "#F7F5F0" },
 
   // Search
   searchWrapper: {
@@ -688,44 +1480,49 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center",
     backgroundColor: "#fff", borderRadius: 14,
     paddingHorizontal: 12, height: 44,
-    shadowColor: "#000", shadowOpacity: 0.13, shadowRadius: 10,
+    shadowColor: "#8B7355", shadowOpacity: 0.1, shadowRadius: 12,
     shadowOffset: { width: 0, height: 3 }, elevation: 5,
-    borderWidth: 1, borderColor: "#e5e7eb",
+    borderWidth: 1, borderColor: "#EDE9E3",
   },
   searchInput: {
-    flex: 1, fontSize: 14, color: "#111827",
+    flex: 1, fontSize: 14, color: "#1C1C1E",
     ...(Platform.OS === "android" ? { paddingVertical: 0 } : {}),
   },
   resultsDropdown: {
     backgroundColor: "#fff", borderRadius: 12, marginTop: 6,
-    shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 8,
+    shadowColor: "#8B7355", shadowOpacity: 0.08, shadowRadius: 10,
     shadowOffset: { width: 0, height: 2 }, elevation: 4,
-    borderWidth: 1, borderColor: "#e5e7eb", overflow: "hidden",
+    borderWidth: 1, borderColor: "#EDE9E3", overflow: "hidden",
   },
   resultRow: {
     flexDirection: "row", alignItems: "center",
     paddingVertical: 10, paddingHorizontal: 12,
   },
-  resultRowBorder: { borderBottomWidth: 1, borderBottomColor: "#f3f4f6" },
-  resultTitle: { fontSize: 13, fontWeight: "600", color: "#111827" },
-  resultSub: { fontSize: 11, color: "#6b7280", marginTop: 1 },
+  resultRowBorder: { borderBottomWidth: 1, borderBottomColor: "#F7F5F0" },
+  resultTitle: { fontSize: 13, fontWeight: "600", color: "#1C1C1E" },
+  resultSub: { fontSize: 11, color: "#6B7280", marginTop: 1 },
 
   // Filter chips
   filterRow: {
     position: "absolute", left: 0, right: 0, zIndex: 20,
+    marginHorizontal: 10,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderRadius: 18,
+    shadowColor: "#8B7355", shadowOpacity: 0.07, shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 }, elevation: 4,
   },
   filterContent: {
-    paddingHorizontal: 12, paddingVertical: 5, gap: 6, alignItems: "center",
+    paddingHorizontal: 10, paddingVertical: 6, gap: 6, alignItems: "center",
   },
   chip: {
     flexDirection: "row", alignItems: "center",
     backgroundColor: "#fff", borderRadius: 99,
     paddingHorizontal: 12, paddingVertical: 6,
-    borderWidth: 1, borderColor: "#e5e7eb",
-    shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
+    borderWidth: 1, borderColor: "#EDE9E3",
+    shadowColor: "#8B7355", shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
     gap: 5,
   },
-  chipText: { fontSize: 12, fontWeight: "600", color: "#374151" },
+  chipText: { fontSize: 12, fontWeight: "600", color: "#1C1C1E" },
   chipTextActive: { color: "#fff" },
   chipAvatar: {
     width: 18, height: 18, borderRadius: 9,
@@ -733,97 +1530,101 @@ const styles = StyleSheet.create({
   },
   chipAvatarText: { fontSize: 9, fontWeight: "700", color: "#fff" },
   chipDivider: {
-    width: 1, height: 22, backgroundColor: "#e5e7eb", marginHorizontal: 4,
+    width: 1, height: 22, backgroundColor: "#EDE9E3", marginHorizontal: 4,
   },
 
   // Bottom sheet – expanded (place selected)
   sheet: {
     position: "absolute", bottom: 0, left: 0, right: 0,
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
     paddingTop: 10, paddingHorizontal: 20,
-    shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 14,
-    shadowOffset: { width: 0, height: -4 }, elevation: 10,
+    shadowColor: "#8B7355", shadowOpacity: 0.12, shadowRadius: 20,
+    shadowOffset: { width: 0, height: -6 }, elevation: 14,
     zIndex: 20,
   },
+
+  // Bottom sheet – peek (no selection)
+  sheetPeek: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    paddingTop: 10,
+    shadowColor: "#8B7355", shadowOpacity: 0.09, shadowRadius: 16,
+    shadowOffset: { width: 0, height: -4 }, elevation: 8,
+    zIndex: 20,
+  },
+
   sheetHandle: {
-    alignSelf: "center", width: 40, height: 4,
-    backgroundColor: "#e5e7eb", borderRadius: 2, marginBottom: 14,
+    alignSelf: "center", width: 48, height: 5,
+    backgroundColor: "#EDE9E3", borderRadius: 99, marginBottom: 14,
   },
   sheetClose: {
-    position: "absolute", top: 14, right: 16,
+    position: "absolute", top: 14, right: 16, zIndex: 10,
   },
   sheetTypeBadge: {
-    flexDirection: "row", alignItems: "center", marginBottom: 8,
+    flexDirection: "row", alignItems: "center", marginBottom: 10, marginTop: 2,
   },
   typePill: {
     borderWidth: 1, borderRadius: 99,
     paddingHorizontal: 10, paddingVertical: 4,
   },
   typePillText: { fontSize: 12, fontWeight: "600" },
-  sheetOwner: { fontSize: 12, color: "#9ca3af", marginLeft: 8 },
-  sheetName: { fontSize: 19, fontWeight: "800", color: "#111827", marginBottom: 6 },
-  sheetAddr: { fontSize: 13, color: "#6b7280", marginTop: 2 },
-  sheetCollection: { fontSize: 13, color: "#6366f1", marginTop: 6, fontWeight: "600" },
+  sheetOwner: { fontSize: 12, color: "#9CA3AF", marginLeft: 8 },
+  sheetName: { fontSize: 21, fontWeight: "700", color: "#1C1C1E", marginBottom: 8 },
+  sheetAddr: { fontSize: 14, color: "#6B7280", marginTop: 2 },
+  sheetCollection: { fontSize: 14, color: "#00A878", marginTop: 6, fontWeight: "600" },
 
-  // Bottom sheet – peeking (no selection)
-  sheetPeek: {
-    position: "absolute", bottom: 0, left: 0, right: 0,
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 22, borderTopRightRadius: 22,
-    paddingTop: 10,
-    shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 10,
-    shadowOffset: { width: 0, height: -3 }, elevation: 6,
-    zIndex: 20,
-  },
   peekHeader: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 16, marginBottom: 10,
   },
-  peekCount: { fontSize: 14, fontWeight: "700", color: "#111827" },
+  peekCount: { fontSize: 14, fontWeight: "700", color: "#1C1C1E" },
   cardList: { paddingHorizontal: 12, gap: 10 },
   placeCard: {
-    width: CARD_W, backgroundColor: "#f9fafb",
-    borderRadius: 12, padding: 12,
-    borderWidth: 1, borderColor: "#e5e7eb",
+    width: CARD_W, backgroundColor: "#FFFFFF",
+    borderRadius: 16, padding: 12,
+    shadowColor: "#8B7355", shadowOpacity: 0.07, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 2 }, elevation: 3,
+    overflow: "hidden",
   },
-  cardDot: { width: 8, height: 8, borderRadius: 4, marginBottom: 7 },
-  cardName: { fontSize: 13, fontWeight: "700", color: "#111827" },
-  cardAddr: { fontSize: 11, color: "#6b7280", marginTop: 2 },
-  cardOwner: { fontSize: 11, color: "#9ca3af", marginTop: 3 },
-  emptyText: { fontSize: 13, color: "#9ca3af", textAlign: "center", paddingHorizontal: 16, paddingBottom: 4 },
+  cardAccent: { position: "absolute", left: 0, top: 0, bottom: 0, width: 3, borderRadius: 0 },
+  cardName: { fontSize: 13, fontWeight: "700", color: "#1C1C1E", marginLeft: 10 },
+  cardAddr: { fontSize: 11, color: "#6B7280", marginTop: 2, marginLeft: 10 },
+  cardOwner: { fontSize: 11, color: "#9CA3AF", marginTop: 3, marginLeft: 10 },
+  emptyText: { fontSize: 13, color: "#9CA3AF", textAlign: "center", paddingHorizontal: 16, paddingBottom: 4 },
 
   // Add place modal
-  modal: { flex: 1, paddingHorizontal: 24, paddingTop: 36, backgroundColor: "#fff" },
+  modal: { flex: 1, paddingHorizontal: 24, paddingTop: 36, backgroundColor: "#FFFFFF" },
   modalHeader: {
     flexDirection: "row", justifyContent: "space-between",
     alignItems: "center", marginBottom: 16,
   },
-  modalTitle: { fontSize: 20, fontWeight: "bold", color: "#111827" },
-  modalClose: { fontSize: 18, color: "#9ca3af", padding: 4 },
+  modalTitle: { fontSize: 20, fontWeight: "bold", color: "#1C1C1E" },
+  modalClose: { fontSize: 18, color: "#9CA3AF", padding: 4 },
   coordsHint: {
-    fontSize: 12, color: "#6b7280", marginBottom: 14,
-    backgroundColor: "#f3f4f6", padding: 8, borderRadius: 8,
+    fontSize: 12, color: "#6B7280", marginBottom: 14,
+    backgroundColor: "#F7F5F0", padding: 8, borderRadius: 8,
   },
-  fieldLabel: { fontSize: 13, fontWeight: "600", color: "#374151", marginBottom: 8 },
+  fieldLabel: { fontSize: 13, fontWeight: "600", color: "#1C1C1E", marginBottom: 8 },
   fieldInput: {
-    borderWidth: 1, borderColor: "#d1d5db", borderRadius: 10,
-    padding: 12, marginBottom: 14, fontSize: 14, backgroundColor: "#fafafa",
+    borderWidth: 1, borderColor: "#EDE9E3", borderRadius: 12,
+    padding: 12, marginBottom: 14, fontSize: 14, backgroundColor: "#FAFAF8",
   },
   collChip: {
-    borderWidth: 1, borderColor: "#d1d5db", borderRadius: 99,
+    borderWidth: 1, borderColor: "#EDE9E3", borderRadius: 99,
     paddingHorizontal: 14, paddingVertical: 6, marginRight: 8, backgroundColor: "#fff",
   },
-  collChipActive: { borderColor: "#4f46e5", backgroundColor: "#eef2ff" },
-  collChipText: { fontSize: 13, color: "#374151" },
-  collChipTextActive: { color: "#4f46e5", fontWeight: "600" },
+  collChipActive: { borderColor: "#00A878", backgroundColor: "#F0FAF5" },
+  collChipText: { fontSize: 13, color: "#6B7280" },
+  collChipTextActive: { color: "#00A878", fontWeight: "600" },
   typeChip: {
-    borderWidth: 1, borderColor: "#d1d5db", borderRadius: 99,
+    borderWidth: 1, borderColor: "#EDE9E3", borderRadius: 99,
     paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "#fff",
   },
-  typeChipText: { fontSize: 12, color: "#374151" },
+  typeChipText: { fontSize: 12, color: "#6B7280" },
   saveBtn: {
-    backgroundColor: "#4f46e5", borderRadius: 10,
+    backgroundColor: "#00A878", borderRadius: 12,
     padding: 14, alignItems: "center", marginTop: 4,
   },
   saveBtnDisabled: { opacity: 0.5 },
@@ -832,28 +1633,93 @@ const styles = StyleSheet.create({
   // Map type toggle
   mapTypeBtn: {
     position: "absolute", right: 16, zIndex: 25,
-    backgroundColor: "#fff", borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.95)", borderRadius: 22,
     paddingHorizontal: 10, paddingVertical: 7,
     alignItems: "center", justifyContent: "center",
-    shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 }, elevation: 5,
-    borderWidth: 1, borderColor: "#e5e7eb",
+    shadowColor: "#8B7355", shadowOpacity: 0.1, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 3 }, elevation: 6,
+    borderWidth: 1, borderColor: "#EDE9E3",
     flexDirection: "row", gap: 4,
   },
   mapTypeBtnIcon: { fontSize: 16 },
-  mapTypeBtnLabel: { fontSize: 11, fontWeight: "600", color: "#374151" },
+  mapTypeBtnLabel: { fontSize: 11, fontWeight: "600", color: "#1C1C1E" },
 
   // Photos
   photoThumb: { width: 70, height: 70, borderRadius: 10 },
   photoRemove: {
     position: "absolute", top: -5, right: -5,
-    backgroundColor: "#ef4444", borderRadius: 99,
+    backgroundColor: "#F4743B", borderRadius: 99,
     width: 18, height: 18, justifyContent: "center", alignItems: "center",
   },
   photoAddBtn: {
-    borderWidth: 1.5, borderColor: "#6366f1", borderStyle: "dashed",
-    borderRadius: 10, paddingVertical: 10,
+    borderWidth: 1.5, borderColor: "#00A878", borderStyle: "dashed",
+    borderRadius: 12, paddingVertical: 10,
     alignItems: "center", marginBottom: 18,
   },
-  photoAddBtnText: { fontSize: 13, color: "#6366f1", fontWeight: "600" },
+  photoAddBtnText: { fontSize: 13, color: "#00A878", fontWeight: "600" },
+
+  // NL search
+  nlToggleBtn: {
+    marginLeft: 6, paddingHorizontal: 6, paddingVertical: 2,
+    borderRadius: 8, borderWidth: 1, borderColor: "#EDE9E3",
+  },
+  nlToggleBtnActive: {
+    backgroundColor: "#F0FAF5", borderColor: "#00A878",
+  },
+  nlRow: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: "#fff", borderRadius: 12, marginTop: 6,
+    paddingHorizontal: 12, paddingVertical: 6,
+    shadowColor: "#8B7355", shadowOpacity: 0.07, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 }, elevation: 3,
+    borderWidth: 1, borderColor: "#EDE9E3",
+  },
+  nlInput: {
+    flex: 1, fontSize: 13, color: "#1C1C1E",
+    ...(Platform.OS === "android" ? { paddingVertical: 4 } : {}),
+  },
+  nlSendBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: "#00A878", alignItems: "center", justifyContent: "center",
+    marginLeft: 8,
+  },
+
+  // NL results
+  nlResultCard: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: "#FAFAF8", borderRadius: 12,
+    padding: 12, marginBottom: 8,
+    borderWidth: 1, borderColor: "#EDE9E3",
+  },
+  nlResultAccent: { width: 4, borderRadius: 2, alignSelf: "stretch", marginRight: 12 },
+  nlResultName: { fontSize: 14, fontWeight: "700", color: "#1C1C1E", flex: 1 },
+  nlResultAddr: { fontSize: 12, color: "#6B7280", marginTop: 3 },
+  nlResultColl: { fontSize: 12, color: "#00A878", marginTop: 3, fontWeight: "600" },
+  nlResultBadge: { borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 },
+  nlResultBadgeText: { fontSize: 11, fontWeight: "600" },
+
+  // Recommendations
+  recCard: {
+    flexDirection: "row", alignItems: "flex-start",
+    backgroundColor: "#FFFDF6", borderRadius: 12,
+    padding: 12, marginBottom: 8,
+    borderWidth: 1, borderColor: "#F5E9C8",
+  },
+  recAccent: { width: 4, borderRadius: 2, alignSelf: "stretch", marginRight: 12 },
+  recName: { fontSize: 14, fontWeight: "700", color: "#1C1C1E", flex: 1 },
+  recWhy: { fontSize: 13, color: "#6B7280", marginTop: 4, lineHeight: 18 },
+  recAddr: { fontSize: 12, color: "#F4743B", marginTop: 3, fontWeight: "600" },
+
+  // AI location info
+  aiDesc: { fontSize: 14, color: "#334155", lineHeight: 21, marginBottom: 14 },
+  aiCard: {
+    backgroundColor: "#F0FAF5", borderRadius: 12,
+    padding: 12, marginBottom: 10,
+    borderLeftWidth: 3, borderLeftColor: "#00A878",
+  },
+  aiCardTitle: {
+    fontSize: 11, fontWeight: "700", color: "#00A878",
+    marginBottom: 4, textTransform: "uppercase", letterSpacing: 1.2,
+  },
+  aiCardText: { fontSize: 13, color: "#334155", lineHeight: 19 },
 });

@@ -5,6 +5,7 @@ import { getMe, updateMe } from "../api/users";
 import { getCollections } from "../api/collections";
 import { getFriends } from "../api/friends";
 import { getGlobalPlaces } from "../api/places";
+import { getMyStatus, updateStatus } from "../api/status";
 
 const PLACE_TYPES = [
   { value: "food",    label: "🍽 Food",     color: "#f97316" },
@@ -19,11 +20,22 @@ function avatarColor(name) {
   return AVATAR_COLORS[(name?.charCodeAt(0) ?? 0) % AVATAR_COLORS.length];
 }
 
+const STAT_ICONS = { Collections: "📚", Places: "📍", Friends: "👥" };
+
+const ACTIVITY_EMOJIS = {
+  coffee: "☕", drinks: "🍺", study: "📚", hike: "🥾",
+  food: "🍕", event: "🎉", hangout: "🛋️", work: "💼", other: "🌀",
+};
+
 function StatBox({ value, label }) {
   return (
-    <div className="flex flex-col items-center">
-      <span className="text-3xl font-extrabold text-white">{value ?? "—"}</span>
-      <span className="mt-0.5 text-xs font-semibold uppercase tracking-wide text-indigo-200">{label}</span>
+    <div className="flex flex-col items-center gap-1">
+      <div className="flex h-9 w-9 items-center justify-center rounded-xl text-lg mb-0.5"
+           style={{ background: "rgba(255,255,255,0.2)", backdropFilter: "blur(8px)" }}>
+        {STAT_ICONS[label]}
+      </div>
+      <span className="text-2xl font-extrabold text-white leading-none">{value ?? "—"}</span>
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-200">{label}</span>
     </div>
   );
 }
@@ -43,7 +55,9 @@ function InfoRow({ icon, label, value }) {
 
 function Card({ title, children }) {
   return (
-    <div className="rounded-2xl bg-white shadow-sm border border-gray-100 p-5">
+    <div className="rounded-2xl bg-white shadow-md border border-gray-100 p-5 relative overflow-hidden">
+      <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-l-2xl"
+           style={{ background: "linear-gradient(180deg, #6366f1, #a855f7)" }} />
       {title && <p className="mb-4 text-[10px] font-bold uppercase tracking-wider text-gray-400">{title}</p>}
       {children}
     </div>
@@ -104,13 +118,14 @@ function EditModal({ profile, onClose, onSaved }) {
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="w-full max-w-lg rounded-3xl bg-white shadow-2xl max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-          <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-800">Cancel</button>
-          <h2 className="text-base font-bold text-gray-900">Edit Profile</h2>
+        <div className="flex items-center justify-between px-6 py-4 rounded-t-3xl"
+             style={{ background: "linear-gradient(135deg, #4f46e5, #7c3aed)" }}>
+          <button onClick={onClose} className="text-sm font-medium text-white/70 hover:text-white transition-colors">Cancel</button>
+          <h2 className="text-base font-bold text-white">Edit Profile</h2>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="text-sm font-bold text-indigo-600 hover:text-indigo-700 disabled:opacity-50"
+            className="text-sm font-bold text-white bg-white/20 hover:bg-white/30 rounded-full px-3 py-1 transition-all disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save"}
           </button>
@@ -213,6 +228,7 @@ export default function Profile() {
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState({ collections: null, places: null, friends: null });
   const [editing, setEditing] = useState(false);
+  const [myStatus, setMyStatus] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -232,7 +248,11 @@ export default function Profile() {
     } catch {}
   }, []);
 
-  useEffect(() => { load(); loadStats(); }, []);
+  useEffect(() => {
+    load();
+    loadStats();
+    getMyStatus().then(setMyStatus).catch(() => {});
+  }, []);
 
   const p = profile ?? authUser;
   const color = avatarColor(p?.username);
@@ -288,6 +308,41 @@ export default function Profile() {
           </div>
         </div>
       </div>
+
+      {/* ── Active status banner ────────────────────────────────────── */}
+      {myStatus && (
+        <div className="mx-auto max-w-2xl px-4 mt-4">
+          <div
+            className={`rounded-2xl p-4 flex items-center justify-between ${
+              myStatus.mode === "live" ? "bg-emerald-500" : "bg-violet-500"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{myStatus.mode === "live" ? "🟢" : "📅"}</span>
+              <div>
+                <p className="font-bold text-white text-sm">
+                  {myStatus.mode === "live" ? "Active Now" : "Upcoming Plan"}
+                </p>
+                <p className="text-white/80 text-xs">
+                  {ACTIVITY_EMOJIS[myStatus.activity_type]}{" "}
+                  {myStatus.message || myStatus.activity_type}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                try {
+                  await updateStatus(myStatus.id, { is_active: false });
+                  setMyStatus(null);
+                } catch {}
+              }}
+              className="bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-3 py-1.5 rounded-lg"
+            >
+              End
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Content ────────────────────────────────────────────────────── */}
       <div className="mx-auto max-w-2xl px-4 py-6 space-y-4">

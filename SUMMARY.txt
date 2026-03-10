@@ -392,5 +392,142 @@ DEV WORKFLOW (UPDATED)
 1.  Start Postgres.app
 2.  cd backend && source venv/bin/activate && uvicorn main:app --reload --host 0.0.0.0
 3.  cd frontend && npm run dev
-4.  cd mobile && npx expo start --tunnel --clear
-    (iPhone must be on same WiFi as Mac to reach local backend IP)
+4.  cd mobile && npx expo start --lan --clear
+    (use --tunnel only if ngrok is available; has outages)
+
+========================================
+STEP 11 — Photos + Place Extra Data
+========================================
+
+BACKEND
+-------
+app/models/place.py         - PlaceType enum: added "exercise" type
+                              Added extra_data (JSONB, nullable) column to Place
+app/schemas/place.py        - FoodExtra, TravelExtra, ExerciseExtra, ShopExtra, HangoutExtra
+                              Pydantic models with type-specific fields (price range, kosher,
+                              dishes tags, difficulty, workout type, has_parking etc.)
+                              PlaceCreate/Update accept extra_data; PlaceOut returns it
+app/routers/uploads.py      - NEW ROUTER: POST /uploads/photo (multipart, max 5 MB,
+                              JPEG/PNG/WebP/GIF) → returns { url: "/uploads/<uuid>.ext" }
+main.py                     - uploads router included; static files mounted at /uploads/
+alembic migration           - 3eafd4117ad2: adds exercise to placetype enum + extra_data JSONB column
+
+FRONTEND (WEB)
+--------------
+src/components/AddPlaceModal.jsx - type pill selector triggers type-specific extra fields:
+                                   food → price range, kosher toggle, dishes tags
+                                   exercise → difficulty, workout type, has_parking toggle
+                                   shop/hangout → relevant fields
+                                   photo upload (up to 5): POST /uploads/photo → stores URL in extra_data.photos[]
+src/components/PlaceCard.jsx     - ExtraDetails panel renders type-specific fields
+                                   Photo strip: <img src="${API_URL}${url}"> for each photo
+
+MOBILE
+------
+mobile/app/collection/[id].jsx  - Same type pills + ExtraFields component with subcomponents:
+                                   PillRow, TagRow, ToggleRow for each extra field type
+                                   expo-image-picker for photo selection + upload
+mobile/package.json             - expo-image-picker ~15.0.7 added
+
+========================================
+STEP 12 — AI Features
+========================================
+
+BACKEND
+-------
+app/routers/ai.py           - NEW ROUTER: prefix /ai
+                              Uses google-genai SDK (gemini-2.0-flash model)
+                              POST /ai/location-info       — description, best_time, what_to_do, tips
+                              POST /ai/collection-description — auto-generate 2-sentence description
+                              POST /ai/natural-search      — NL query → type filter + keyword search
+                              POST /ai/analyze-photo       — vision: detect place type + name suggestion
+                              POST /ai/recommendations     — 5 place suggestions based on saved places
+                              POST /ai/travel-guide        — 3-4 paragraph blog-style guide for collection
+app/config.py               - gemini_api_key: str = "" setting added
+backend/.env                - GEMINI_API_KEY set (currently pending Google Trust Check, quota limit: 0)
+backend/requirements.txt    - google-genai (new SDK, replaces deprecated google-generativeai)
+main.py                     - ai router included
+
+MOBILE
+------
+mobile/src/api/ai.js        - getLocationInfo, getCollectionDescription, naturalSearch,
+                              analyzePhoto, getRecommendations, getTravelGuide
+mobile/app/(tabs)/index.jsx - ✨ AI toggle button in search bar opens NL search row
+                              "For you ✨" filter chip triggers getRecommendations()
+                              Tapping searched location pin → AI location info card in bottom sheet
+
+========================================
+STEP 13 — "Where Am I" Social Status Feature
+========================================
+
+BACKEND
+-------
+app/models/user_status.py   - NEW: UserStatus model (user_statuses table)
+                              StatusMode enum: live / plan
+                              ActivityType enum: coffee/drinks/study/hike/food/event/hangout/work/other
+                              RSVPResponse enum: going / maybe / no
+                              UserStatus: id, user_id→User, mode, activity_type, message,
+                                location (PostGIS POINT 4326), location_name, expires_at,
+                                is_active (bool), visibility (friends/public), created_at
+                              StatusRSVP: id, status_id→UserStatus, user_id→User,
+                                response (RSVPResponse), UniqueConstraint(status_id, user_id)
+app/models/__init__.py      - Added UserStatus, StatusRSVP imports
+app/models/user.py          - Added statuses relationship → UserStatus
+app/routers/status.py       - NEW ROUTER: prefix /status
+                              POST   /status           — create live status or plan
+                              GET    /status/feed      — active statuses from friends + own + public
+                              GET    /status/my        — current user's active status (or null)
+                              PATCH  /status/{id}      — deactivate or update message
+                              DELETE /status/{id}      — delete own status
+                              POST   /status/{id}/rsvp — RSVP to a plan (going/maybe/no)
+                              GET    /status/{id}/rsvp — list RSVPs for a plan
+                              expires_at parser: "1h"→now+1h, "3h"→now+3h, "tonight"→23:59,
+                                else ISO datetime string
+                              Auto-expire: bulk UPDATE before feed/my reads
+main.py                     - status router included
+alembic migration           - afbed2f8fdf2 (hand-written, stamped with alembic stamp)
+
+MOBILE
+------
+mobile/src/api/status.js        - createStatus, getStatusFeed, getMyStatus, updateStatus,
+                                  deleteStatus, rsvpStatus, getStatusRsvps
+mobile/app/(tabs)/index.jsx     - PulsingMarker: Animated.loop scale 1.0→1.6, 1200ms,
+                                  coral (#F4743B) for live, purple (#7C5CBF) for plan
+                                  PostStatusModal: mode toggle, 9 activity emoji pills,
+                                  message input, location name, expiry pills (live) or
+                                  DateTimePicker (plan), visibility toggle, End status button
+                                  30s polling: setInterval(loadStatuses, 30000)
+                                  Broadcast FAB: white circle + colored border ring + ✈️/📍 icon
+                                  Status detail card: avatar, italic message + accent border,
+                                  RSVP pill buttons, RSVP counts
+mobile/app/(tabs)/profile.jsx   - Active Now (coral) / Upcoming Plan (purple) gradient banner
+                                  with "End" button calls updateStatus({is_active: false})
+mobile/app/(tabs)/friends.jsx   - getStatusFeed loaded alongside friends; active status emoji
+                                  + location shown under friend name instead of email
+mobile/package.json             - @react-native-community/datetimepicker installed (--legacy-peer-deps)
+
+WEB FRONTEND
+------------
+frontend/src/api/status.js          - same 6 API functions
+frontend/src/components/PostStatusModal.jsx - bottom-sheet modal, same fields as mobile,
+                                              datetime-local input for plan date
+frontend/src/pages/Explore.jsx      - CSS @keyframes pulse-live/pulse-plan injected via
+                                      document.createElement("style"); Leaflet L.divIcon
+                                      custom markers; 30s polling; Share Status button;
+                                      selectedStatus card with RSVP buttons
+frontend/src/pages/Profile.jsx      - Active Now / Upcoming Plan banner with End button
+
+DESIGN SYSTEM (Polarsteps-inspired, applied to mobile Explore screen)
+----------------------------------------------------------------------
+Background:    #F7F5F0  (warm off-white)
+Cards/sheets:  #FFFFFF
+Primary teal:  #00A878  (add place, save, NL search)
+Live status:   #F4743B  (coral/orange)
+Plan status:   #7C5CBF  (purple)
+Text primary:  #1C1C1E
+Text secondary:#6B7280
+Text muted:    #9CA3AF
+Borders:       #EDE9E3  (warm gray)
+Shadows:       shadowColor "#8B7355", shadowOpacity 0.07–0.12
+Pill buttons:  borderRadius 50
+Section labels:fontSize 11, fontWeight 700, color #A09A93, letterSpacing 1.2, uppercase

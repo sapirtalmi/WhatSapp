@@ -22,10 +22,16 @@ import { useAuth } from "../../src/context/AuthContext";
 import { getMe, updateMe } from "../../src/api/users";
 import { getCollections } from "../../src/api/collections";
 import api from "../../src/api/axios";
+import { getMyStatus, updateStatus } from "../../src/api/status";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000";
 import { getFriends } from "../../src/api/friends";
 import { getGlobalPlaces } from "../../src/api/places";
+
+const ACTIVITY_EMOJIS = {
+  coffee: "☕", drinks: "🍺", study: "📚", hike: "🥾",
+  food: "🍕", event: "🎉", hangout: "🛋️", work: "💼", other: "🌀",
+};
 
 const PLACE_TYPES = [
   { value: "food", label: "🍽 Food", color: "#f97316" },
@@ -87,6 +93,7 @@ export default function ProfileScreen() {
 
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState({ collections: null, places: null, friends: null });
+  const [myStatus, setMyStatus] = useState(null);
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState({});
   const [saving, setSaving] = useState(false);
@@ -123,6 +130,7 @@ export default function ProfileScreen() {
   useEffect(() => {
     loadProfile();
     loadStats();
+    getMyStatus().then(s => setMyStatus(s)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -233,7 +241,7 @@ export default function ProfileScreen() {
   const displayedHobbies = profile?.hobbies ?? [];
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#f1f5f9" }}>
+    <View style={{ flex: 1, backgroundColor: "#f5f3ff" }}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 40 }}
@@ -241,11 +249,16 @@ export default function ProfileScreen() {
       >
         {/* ── Hero gradient header ─────────────────────────────────────── */}
         <LinearGradient
-          colors={["#4f46e5", "#7c3aed", "#a855f7"]}
+          colors={["#ffecd2", "#fcb69f", "#ff9a9e", "#a18cd1", "#c084fc"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[styles.hero, { paddingTop: insets.top + 16 }]}
         >
+          {/* Decorative light orbs */}
+          <View style={styles.orb1} />
+          <View style={styles.orb2} />
+          <View style={styles.orb3} />
+
           {/* Avatar */}
           <TouchableOpacity style={styles.avatarRing} onPress={handleAvatarPress} activeOpacity={0.85}>
             {profile?.avatar_url ? (
@@ -276,19 +289,53 @@ export default function ProfileScreen() {
           ) : null}
         </LinearGradient>
 
+        {/* ── Active status banner ─────────────────────────────────────── */}
+        {myStatus && (
+          <View style={{ marginHorizontal: 20, marginBottom: 12, borderRadius: 16, overflow: "hidden" }}>
+            <LinearGradient
+              colors={myStatus.mode === "live" ? ["#22c55e", "#16a34a"] : ["#8b5cf6", "#6d28d9"]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={{ flexDirection: "row", alignItems: "center", padding: 14, justifyContent: "space-between" }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                <Text style={{ fontSize: 20, marginRight: 10 }}>
+                  {myStatus.mode === "live" ? "🟢" : "📅"}
+                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>
+                    {myStatus.mode === "live" ? "Active Now" : "Upcoming Plan"}
+                  </Text>
+                  <Text style={{ color: "rgba(255,255,255,0.85)", fontSize: 12 }} numberOfLines={1}>
+                    {ACTIVITY_EMOJIS[myStatus.activity_type]} {myStatus.message || myStatus.activity_type}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={async () => { await updateStatus(myStatus.id, { is_active: false }); setMyStatus(null); }}
+                style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 10 }}
+              >
+                <Text style={{ color: "#fff", fontWeight: "600", fontSize: 12 }}>End</Text>
+              </TouchableOpacity>
+            </LinearGradient>
+          </View>
+        )}
+
         {/* ── Stats row ───────────────────────────────────────────────── */}
         <View style={styles.statsRow}>
           <View style={styles.statBox}>
+            <Text style={[styles.statIcon, { backgroundColor: "#eef2ff" }]}>📚</Text>
             <Text style={styles.statValue}>{stats.collections ?? "—"}</Text>
             <Text style={styles.statLabel}>Collections</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statBox}>
+            <Text style={[styles.statIcon, { backgroundColor: "#f5f3ff" }]}>📍</Text>
             <Text style={styles.statValue}>{stats.places ?? "—"}</Text>
             <Text style={styles.statLabel}>Places</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statBox}>
+            <Text style={[styles.statIcon, { backgroundColor: "#fdf4ff" }]}>👥</Text>
             <Text style={styles.statValue}>{stats.friends ?? "—"}</Text>
             <Text style={styles.statLabel}>Friends</Text>
           </View>
@@ -468,12 +515,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingBottom: 32,
     paddingHorizontal: 20,
+    overflow: "hidden",
+  },
+  orb1: {
+    position: "absolute", width: 220, height: 220, borderRadius: 110,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    top: -60, right: -60,
+  },
+  orb2: {
+    position: "absolute", width: 160, height: 160, borderRadius: 80,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    bottom: 10, left: -50,
+  },
+  orb3: {
+    position: "absolute", width: 90, height: 90, borderRadius: 45,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    top: 40, left: "40%",
   },
   avatarRing: {
     width: 108,
     height: 108,
     borderRadius: 54,
-    backgroundColor: "rgba(255,255,255,0.25)",
+    backgroundColor: "rgba(255,255,255,0.35)",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 14,
@@ -497,7 +560,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 14,
     width: 28, height: 28, justifyContent: "center", alignItems: "center",
   },
-  heroName: { fontSize: 26, fontWeight: "800", color: "#fff", marginBottom: 8 },
+  heroName: { fontSize: 30, fontWeight: "900", color: "#fff", marginBottom: 8, letterSpacing: -0.5 },
   heroSubRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 2 },
   heroSub: { fontSize: 13, color: "rgba(255,255,255,0.85)", textAlign: "center" },
   heroDot: { fontSize: 13, color: "rgba(255,255,255,0.6)" },
@@ -508,17 +571,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     marginHorizontal: 16,
     marginTop: -20,
-    borderRadius: 18,
+    borderRadius: 20,
     paddingVertical: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    shadowColor: "#a78bfa",
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
   },
-  statBox: { flex: 1, alignItems: "center" },
-  statValue: { fontSize: 24, fontWeight: "800", color: "#0f172a" },
-  statLabel: { fontSize: 11, color: "#94a3b8", marginTop: 2, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
+  statBox: { flex: 1, alignItems: "center", gap: 2 },
+  statIcon: {
+    width: 32, height: 32, borderRadius: 10,
+    alignItems: "center", justifyContent: "center",
+    marginBottom: 4, fontSize: 15,
+  },
+  statValue: { fontSize: 28, fontWeight: "900", color: "#0f172a" },
+  statLabel: { fontSize: 10, color: "#94a3b8", fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.6 },
   statDivider: { width: 1, backgroundColor: "#f1f5f9", marginVertical: 4 },
 
   // Cards
@@ -527,10 +595,13 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowColor: "#2dd4bf",
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+    borderLeftWidth: 3,
+    borderLeftColor: "#c4b5fd",
   },
   cardTitle: {
     fontSize: 11,
@@ -538,7 +609,7 @@ const styles = StyleSheet.create({
     color: "#94a3b8",
     textTransform: "uppercase",
     letterSpacing: 0.8,
-    marginBottom: 10,
+    marginBottom: 12,
   },
 
   // Info rows
@@ -592,7 +663,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 14,
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(239,68,68,0.04)",
     borderWidth: 1,
     borderColor: "#fecaca",
   },
@@ -612,7 +683,7 @@ const styles = StyleSheet.create({
   },
   sheetCancel: { fontSize: 16, color: "#64748b" },
   sheetTitle: { fontSize: 17, fontWeight: "700", color: "#0f172a" },
-  sheetSave: { fontSize: 16, fontWeight: "700", color: "#4f46e5" },
+  sheetSave: { fontSize: 16, fontWeight: "700", color: "#0d9488" },
   sheetBody: { flex: 1, backgroundColor: "#f8fafc", paddingHorizontal: 16, paddingTop: 16 },
 
   fieldLabel: { fontSize: 12, fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6, marginTop: 14 },
@@ -630,7 +701,7 @@ const styles = StyleSheet.create({
   addBtn: {
     width: 46,
     height: 46,
-    backgroundColor: "#6366f1",
+    backgroundColor: "#0d9488",
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",

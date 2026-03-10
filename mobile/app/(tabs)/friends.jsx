@@ -19,6 +19,9 @@ import {
   removeFriend,
   searchUsers,
 } from "../../src/api/friends";
+import { getStatusFeed } from "../../src/api/status";
+
+const ACTIVITY_EMOJIS = { coffee:"☕", drinks:"🍺", study:"📚", hike:"🥾", food:"🍕", event:"🎉", hangout:"🛋️", work:"💼", other:"🌀" };
 
 function useDebounce(value, delay = 400) {
   const [debounced, setDebounced] = useState(value);
@@ -48,6 +51,7 @@ export default function FriendsScreen() {
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [friendStatuses, setFriendStatuses] = useState({});
 
   const debouncedQuery = useDebounce(searchQuery);
 
@@ -57,6 +61,13 @@ export default function FriendsScreen() {
       .then(([f, p]) => { setFriends(f); setPending(p); })
       .catch(() => Alert.alert("Error", "Failed to load friends."))
       .finally(() => setLoading(false));
+    getStatusFeed()
+      .then(feed => {
+        const map = {};
+        (feed || []).forEach(s => { map[s.user_id] = s; });
+        setFriendStatuses(map);
+      })
+      .catch(() => {});
   }
 
   useEffect(() => { loadFriends(); }, []);
@@ -227,7 +238,15 @@ export default function FriendsScreen() {
                 <Avatar name={item.user?.username} />
                 <View style={styles.userInfo}>
                   <Text style={styles.userName}>{item.user?.username}</Text>
-                  <Text style={styles.userEmail}>{item.user?.email}</Text>
+                  {friendStatuses[item.user?.id] ? (
+                    <Text style={[styles.userEmail, { color: "#22c55e" }]}>
+                      {ACTIVITY_EMOJIS[friendStatuses[item.user.id].activity_type]}{" "}
+                      {friendStatuses[item.user.id].location_name || friendStatuses[item.user.id].activity_type}
+                      {friendStatuses[item.user.id].mode === "live" ? " · now" : " · upcoming"}
+                    </Text>
+                  ) : (
+                    <Text style={styles.userEmail}>{item.user?.email}</Text>
+                  )}
                 </View>
                 <TouchableOpacity onPress={() => handleRemove(item.id)}>
                   <Text style={styles.removeText}>Remove</Text>

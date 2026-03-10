@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.database import engine
 from app.models import Base
-from app.routers import auth, collections, feed, friends, places, saved, uploads, users
+from app.routers import ai, auth, collections, feed, friends, places, saved, status, uploads, users
 
 UPLOAD_DIR = Path(__file__).parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
@@ -23,12 +23,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(ai.router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(collections.router)
 app.include_router(places.router)
 app.include_router(friends.router)
 app.include_router(feed.router)
+app.include_router(status.router)
 app.include_router(saved.router)
 app.include_router(uploads.router)
 
