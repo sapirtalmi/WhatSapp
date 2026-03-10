@@ -13,49 +13,64 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import { getCollections, createCollection, deleteCollection } from "../../src/api/collections";
+import { generateCollectionDescription } from "../../src/api/ai";
 
-const ACCENT_COLORS = ["#6366f1", "#f97316", "#22c55e", "#3b82f6", "#a855f7", "#ec4899", "#14b8a6"];
+const COVER_GRADIENTS = [
+  ["#a5b4fc", "#c4b5fd"],
+  ["#fda4af", "#fdba74"],
+  ["#6ee7b7", "#67e8f9"],
+  ["#c4b5fd", "#f0abfc"],
+  ["#fcd34d", "#fdba74"],
+  ["#6ee7b7", "#a5f3fc"],
+];
 
-function accentFor(id) {
-  return ACCENT_COLORS[id % ACCENT_COLORS.length];
+function coverFor(id) {
+  return COVER_GRADIENTS[id % COVER_GRADIENTS.length];
 }
 
 function CollectionCard({ item, onDelete }) {
-  const accent = accentFor(item.id);
+  const colors = coverFor(item.id);
   return (
     <TouchableOpacity
       style={styles.card}
       onPress={() => router.push(`/collection/${item.id}`)}
-      activeOpacity={0.75}
+      activeOpacity={0.78}
     >
-      <View style={[styles.cardAccent, { backgroundColor: accent }]} />
-      <View style={styles.cardBody}>
-        <View style={styles.cardRow}>
-          <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-          <View style={[styles.privacyBadge, item.is_public ? styles.publicBadge : styles.privateBadge]}>
-            <Text style={[styles.privacyText, item.is_public ? styles.publicText : styles.privateText]}>
-              {item.is_public ? "Public" : "Private"}
-            </Text>
-          </View>
+      {/* Gradient cover */}
+      <LinearGradient
+        colors={colors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.cardCover}
+      >
+        <View style={[styles.privacyBadge, { backgroundColor: "rgba(0,0,0,0.2)", borderColor: "rgba(255,255,255,0.25)" }]}>
+          <Text style={[styles.privacyText, { color: "#fff" }]}>
+            {item.is_public ? "Public" : "Private"}
+          </Text>
         </View>
+        {item.place_count != null && (
+          <View style={styles.coverCountBadge}>
+            <Text style={styles.coverCountText}>📍 {item.place_count}</Text>
+          </View>
+        )}
+      </LinearGradient>
 
+      <View style={styles.cardBody}>
+        <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
         {item.description ? (
           <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
         ) : null}
-
-        <View style={styles.cardFooter}>
-          {item.place_count != null ? (
-            <View style={styles.countBadge}>
-              <Text style={styles.countText}>📍 {item.place_count} place{item.place_count !== 1 ? "s" : ""}</Text>
-            </View>
-          ) : null}
-          <TouchableOpacity onPress={() => onDelete(item.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Text style={styles.deleteBtnText}>Remove</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          onPress={() => onDelete(item.id)}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={{ alignSelf: "flex-start", marginTop: 6 }}
+        >
+          <Text style={styles.deleteBtnText}>Remove</Text>
+        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
@@ -71,6 +86,23 @@ export default function CollectionsScreen() {
   const [description, setDescription] = useState("");
   const [isPublic, setIsPublic] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [generatingDesc, setGeneratingDesc] = useState(false);
+
+  async function handleGenerateDesc() {
+    if (!title.trim()) {
+      Alert.alert("Name required", "Enter a collection name first.");
+      return;
+    }
+    setGeneratingDesc(true);
+    try {
+      const res = await generateCollectionDescription(null, title.trim());
+      setDescription(res.description);
+    } catch {
+      Alert.alert("AI", "Could not generate description. Try again.");
+    } finally {
+      setGeneratingDesc(false);
+    }
+  }
 
   function loadCollections() {
     getCollections()
@@ -139,6 +171,19 @@ export default function CollectionsScreen() {
 
   return (
     <View style={styles.screen}>
+      {/* Dreamy banner */}
+      <LinearGradient
+        colors={["#ffecd2", "#fcb69f", "#ff9a9e", "#a18cd1"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.banner}
+      >
+        <View style={styles.bannerOrb1} />
+        <View style={styles.bannerOrb2} />
+        <Text style={styles.bannerTitle}>My Collections</Text>
+        <Text style={styles.bannerSub}>Your saved places, organised</Text>
+      </LinearGradient>
+
       {/* Search bar */}
       <View style={styles.searchWrapper}>
         <View style={styles.searchRow}>
@@ -175,8 +220,15 @@ export default function CollectionsScreen() {
         }
       />
 
-      <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)}>
-        <Text style={styles.fabText}>+</Text>
+      <TouchableOpacity style={styles.fabWrap} onPress={() => setModalVisible(true)} activeOpacity={0.85}>
+        <LinearGradient
+          colors={["#34d399", "#2dd4bf"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.fab}
+        >
+          <Text style={styles.fabText}>+</Text>
+        </LinearGradient>
       </TouchableOpacity>
 
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalVisible(false)}>
@@ -204,6 +256,15 @@ export default function CollectionsScreen() {
             multiline
             textAlignVertical="top"
           />
+          <TouchableOpacity
+            style={[styles.genDescBtn, (!title.trim() || generatingDesc) && { opacity: 0.5 }]}
+            onPress={handleGenerateDesc}
+            disabled={!title.trim() || generatingDesc}
+          >
+            {generatingDesc
+              ? <ActivityIndicator size="small" color="#0d9488" />
+              : <Text style={styles.genDescBtnText}>✨ Generate description</Text>}
+          </TouchableOpacity>
 
           <View style={styles.switchRow}>
             <View>
@@ -213,7 +274,7 @@ export default function CollectionsScreen() {
             <Switch
               value={isPublic}
               onValueChange={setIsPublic}
-              trackColor={{ true: "#4f46e5" }}
+              trackColor={{ true: "#2dd4bf" }}
               thumbColor="#fff"
             />
           </View>
@@ -232,20 +293,44 @@ export default function CollectionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#f8fafc" },
+  screen: { flex: 1, backgroundColor: "#f5f3ff" },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
+
+  banner: {
+    paddingTop: 20,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
+    overflow: "hidden",
+  },
+  bannerOrb1: {
+    position: "absolute", width: 180, height: 180, borderRadius: 90,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    top: -50, right: -40,
+  },
+  bannerOrb2: {
+    position: "absolute", width: 120, height: 120, borderRadius: 60,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    bottom: -20, left: 20,
+  },
+  bannerTitle: {
+    fontSize: 28, fontWeight: "900", color: "#fff", letterSpacing: -0.5,
+    textShadowColor: "rgba(0,0,0,0.08)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
+  },
+  bannerSub: {
+    fontSize: 13, color: "rgba(255,255,255,0.85)", fontWeight: "500", marginTop: 2,
+  },
 
   searchWrapper: {
     backgroundColor: "#fff",
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    borderBottomColor: "#ede9fe",
   },
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f1f5f9",
+    backgroundColor: "#f5f3ff",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 2,
@@ -255,32 +340,45 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 14, color: "#0f172a", paddingVertical: 10 },
   clearBtn: { fontSize: 14, color: "#94a3b8", padding: 4 },
 
-  list: { padding: 16, gap: 12, paddingBottom: 100 },
+  list: { padding: 20, gap: 14, paddingBottom: 100 },
 
   card: {
     backgroundColor: "#fff",
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
-    flexDirection: "row",
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
-  cardAccent: { width: 5 },
-  cardBody: { flex: 1, padding: 14, gap: 6 },
-  cardRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
-  cardTitle: { fontSize: 15, fontWeight: "700", color: "#0f172a", flex: 1 },
-  privacyBadge: { borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3 },
-  publicBadge: { backgroundColor: "#dcfce7" },
-  privateBadge: { backgroundColor: "#f1f5f9" },
+  cardCover: {
+    height: 90,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    padding: 12,
+  },
+  cardBody: { padding: 16 },
+  cardTitle: { fontSize: 16, fontWeight: "800", color: "#0f172a" },
+  privacyBadge: {
+    borderRadius: 99,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+  },
   privacyText: { fontSize: 10, fontWeight: "600" },
-  publicText: { color: "#16a34a" },
-  privateText: { color: "#64748b" },
-  cardDesc: { fontSize: 12, color: "#94a3b8", lineHeight: 17 },
-  cardFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4 },
-  countBadge: { backgroundColor: "#f1f5f9", borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3 },
-  countText: { fontSize: 11, color: "#64748b", fontWeight: "500" },
+  coverCountBadge: {
+    backgroundColor: "rgba(0,0,0,0.2)",
+    borderRadius: 99,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+    alignSelf: "flex-end",
+  },
+  coverCountText: { fontSize: 10, fontWeight: "600", color: "#fff" },
+  cardDesc: { fontSize: 12, color: "#94a3b8", lineHeight: 17, marginTop: 4 },
   deleteBtnText: { fontSize: 12, color: "#ef4444", fontWeight: "500" },
 
   emptyState: { alignItems: "center", paddingVertical: 60 },
@@ -288,21 +386,23 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 17, fontWeight: "700", color: "#64748b", marginBottom: 6 },
   emptyHint: { fontSize: 13, color: "#94a3b8", textAlign: "center" },
 
-  fab: {
+  fabWrap: {
     position: "absolute",
-    bottom: 24,
+    bottom: 100,
     right: 24,
+    shadowColor: "#2dd4bf",
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+    borderRadius: 28,
+  },
+  fab: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "#4f46e5",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#4f46e5",
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
   },
   fabText: { color: "#fff", fontSize: 28, lineHeight: 32, marginTop: -2 },
 
@@ -336,11 +436,18 @@ const styles = StyleSheet.create({
   switchHint: { fontSize: 12, color: "#94a3b8", marginTop: 2 },
 
   saveBtn: {
-    backgroundColor: "#4f46e5",
+    backgroundColor: "#0d9488",
     borderRadius: 12,
     padding: 16,
     alignItems: "center",
   },
   saveBtnDisabled: { opacity: 0.5 },
   saveBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+
+  genDescBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    borderWidth: 1.5, borderColor: "#2dd4bf", borderStyle: "dashed",
+    borderRadius: 10, paddingVertical: 9, marginBottom: 16,
+  },
+  genDescBtnText: { fontSize: 13, color: "#0d9488", fontWeight: "600" },
 });

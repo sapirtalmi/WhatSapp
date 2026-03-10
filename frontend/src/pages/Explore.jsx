@@ -8,7 +8,9 @@ import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import { useAuth } from "../context/AuthContext";
 import { getFriends } from "../api/friends";
 import { getGlobalPlaces } from "../api/places";
+import { getStatusFeed, getMyStatus, rsvpStatus } from "../api/status";
 import AddPlaceModal from "../components/AddPlaceModal";
+import PostStatusModal from "../components/PostStatusModal";
 
 // Fix Leaflet default icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -35,6 +37,23 @@ function avatarColor(name) {
   return AVATAR_COLORS[(name?.charCodeAt(0) ?? 0) % AVATAR_COLORS.length];
 }
 
+// ── Status helpers ──────────────────────────────────────────────────────────────
+
+const ACTIVITY_EMOJIS = {
+  coffee: "☕", drinks: "🍺", study: "📚", hike: "🥾",
+  food: "🍕", event: "🎉", hangout: "🛋️", work: "💼", other: "🌀",
+};
+
+function timeLeft(expiresAt) {
+  const diff = new Date(expiresAt) - new Date();
+  if (diff <= 0) return "expired";
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+// ── Marker helpers ──────────────────────────────────────────────────────────────
+
 function coloredMarker(color) {
   return L.divIcon({
     className: "",
@@ -50,6 +69,16 @@ function searchPinMarker() {
     html: `<div style="width:18px;height:18px;background:#6366f1;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(99,102,241,.5)"></div>`,
     iconSize: [18, 18],
     iconAnchor: [9, 9],
+  });
+}
+
+function statusMarkerIcon(isLive) {
+  const cls = isLive ? "status-marker-live" : "status-marker-plan";
+  return L.divIcon({
+    className: "",
+    html: `<div class="${cls}"><div class="ring"></div><div class="dot"></div></div>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
   });
 }
 
@@ -125,7 +154,7 @@ function SearchBar({ onSelect }) {
 
   return (
     <div ref={wrapperRef} className="relative w-full max-w-sm">
-      <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-md">
+      <div className="flex items-center gap-2 rounded-xl border border-gray-100 bg-white/80 px-3 py-2 shadow-sm">
         <svg className="h-4 w-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
@@ -193,9 +222,53 @@ export default function Explore() {
   // Add place
   const [addCoords, setAddCoords] = useState(null);
 
+  // Status
+  const [statuses, setStatuses] = useState([]);
+  const [myStatus, setMyStatus] = useState(null);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState(null);
+
+  // Inject pulsing marker CSS once on mount
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.textContent = `
+      @keyframes pulse-live {
+        0%, 100% { transform: scale(1); opacity: 0.7; }
+        50% { transform: scale(1.8); opacity: 0; }
+      }
+      @keyframes pulse-plan {
+        0%, 100% { transform: scale(1); opacity: 0.5; }
+        50% { transform: scale(1.6); opacity: 0; }
+      }
+      .status-marker-live { position: relative; width: 24px; height: 24px; }
+      .status-marker-live .ring { position: absolute; inset: 0; border-radius: 50%; background: #22c55e; animation: pulse-live 1.4s ease-in-out infinite; }
+      .status-marker-live .dot { position: absolute; inset: 5px; border-radius: 50%; background: #22c55e; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(34,197,94,0.5); }
+      .status-marker-plan { position: relative; width: 24px; height: 24px; }
+      .status-marker-plan .ring { position: absolute; inset: 0; border-radius: 50%; background: #8b5cf6; animation: pulse-plan 1.8s ease-in-out infinite; }
+      .status-marker-plan .dot { position: absolute; inset: 5px; border-radius: 50%; background: #8b5cf6; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(139,92,246,0.5); }
+    `;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
+  }, []);
+
   useEffect(() => {
     getFriends().then(setFriends).catch(() => {});
   }, []);
+
+  // Load statuses and poll every 30 seconds
+  const loadStatuses = useCallback(async () => {
+    try {
+      const [feed, my] = await Promise.all([getStatusFeed(), getMyStatus()]);
+      setStatuses(feed || []);
+      setMyStatus(my || null);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    loadStatuses();
+    const id = setInterval(loadStatuses, 30000);
+    return () => clearInterval(id);
+  }, [loadStatuses]);
 
   const loadPlaces = useCallback(async () => {
     setLoading(true);
@@ -231,6 +304,7 @@ export default function Explore() {
 
   function handleMapClick(lat, lng) {
     setSelected(null);
+    setSelectedStatus(null);
     setAddCoords({ lat, lng });
   }
 
@@ -240,11 +314,20 @@ export default function Explore() {
     setFlyTo([result.lat, result.lng]);
   }
 
+  const handleRsvp = useCallback(async (statusId, response) => {
+    try {
+      await rsvpStatus(statusId, response);
+      await loadStatuses();
+      setSelectedStatus((prev) => prev ? { ...prev, my_rsvp: response } : null);
+    } catch {}
+  }, [loadStatuses]);
+
   return (
     <div className="relative h-[calc(100vh-3.5rem)] md:h-screen overflow-hidden">
 
       {/* ── Top bar (search + filters) ────────────────────────────────── */}
-      <div className="absolute top-3 left-1/2 z-[1000] -translate-x-1/2 w-[calc(100%-24px)] max-w-3xl rounded-2xl border border-gray-200 bg-white/97 px-3 py-2.5 shadow-lg backdrop-blur space-y-2">
+      <div className="absolute top-3 left-1/2 z-[1000] -translate-x-1/2 w-[calc(100%-24px)] max-w-3xl rounded-2xl border border-white/50 px-3 py-2.5 shadow-xl space-y-2"
+           style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)" }}>
 
         {/* Search row */}
         <SearchBar onSelect={handleSearchSelect} />
@@ -256,9 +339,10 @@ export default function Explore() {
             onClick={() => setSelectedUser("all")}
             className={`rounded-full border px-3 py-0.5 text-xs font-semibold transition-all ${
               selectedUser === "all"
-                ? "bg-indigo-600 border-indigo-600 text-white"
+                ? "border-transparent text-white"
                 : "border-gray-200 bg-white text-gray-600 hover:border-indigo-300"
             }`}
+            style={selectedUser === "all" ? { background: "linear-gradient(135deg, #4f46e5, #7c3aed)" } : {}}
           >
             🌍 Everyone
           </button>
@@ -266,9 +350,10 @@ export default function Explore() {
             onClick={() => setSelectedUser("mine")}
             className={`rounded-full border px-3 py-0.5 text-xs font-semibold transition-all ${
               selectedUser === "mine"
-                ? "bg-slate-800 border-slate-800 text-white"
+                ? "border-transparent text-white"
                 : "border-gray-200 bg-white text-gray-600 hover:border-gray-400"
             }`}
+            style={selectedUser === "mine" ? { background: "linear-gradient(135deg, #1e293b, #334155)" } : {}}
           >
             👤 My Places
           </button>
@@ -310,17 +395,29 @@ export default function Explore() {
       </div>
 
       {/* ── Place count + loading ─────────────────────────────────────── */}
-      <div className="absolute right-4 top-3 z-[1000] rounded-full border border-gray-200 bg-white/90 px-2.5 py-1 text-xs text-gray-500 shadow">
+      <div className="absolute right-4 top-3 z-[1000] rounded-full border border-white/50 px-2.5 py-1 text-xs font-semibold text-gray-600 shadow-md"
+           style={{ background: "rgba(255,255,255,0.85)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
         {loading
           ? <span className="inline-block h-3 w-3 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin align-middle" />
           : `${places.length} place${places.length !== 1 ? "s" : ""}`
         }
       </div>
 
+      {/* ── Share Status button ───────────────────────────────────────── */}
+      <button
+        onClick={() => setShowStatusModal(true)}
+        className={`absolute top-3 right-28 z-[1000] flex items-center gap-2 px-4 py-1.5 rounded-full shadow-lg font-semibold text-sm text-white transition-all ${
+          myStatus ? "bg-emerald-500 hover:bg-emerald-600" : "bg-indigo-600 hover:bg-indigo-700"
+        }`}
+      >
+        {myStatus ? "📍 Active" : "📣 Share Status"}
+      </button>
+
       {/* ── Satellite toggle ─────────────────────────────────────────── */}
       <button
         onClick={() => setSatellite((s) => !s)}
-        className="absolute bottom-12 right-4 z-[1000] flex items-center gap-1.5 rounded-full border border-gray-200 bg-white/95 px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-md hover:bg-gray-50 transition-colors"
+        className="absolute bottom-12 right-4 z-[1000] flex items-center gap-1.5 rounded-full border border-white/50 px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-lg hover:scale-105 transition-all"
+        style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
       >
         {satellite ? "🗺 Map" : "🛰 Satellite"}
       </button>
@@ -360,7 +457,7 @@ export default function Explore() {
             key={place.id}
             position={[place.lat, place.lng]}
             icon={coloredMarker(TYPE_COLORS[place.type] ?? "#4f46e5")}
-            eventHandlers={{ click: () => { setSelected(place); setAddCoords(null); } }}
+            eventHandlers={{ click: () => { setSelected(place); setAddCoords(null); setSelectedStatus(null); } }}
           >
             {selected?.id === place.id && (
               <Popup position={[place.lat, place.lng]} onClose={() => setSelected(null)}>
@@ -386,12 +483,86 @@ export default function Explore() {
             )}
           </Marker>
         ))}
+
+        {/* Status markers */}
+        {statuses.map((s) => (
+          <Marker
+            key={`status-${s.id}`}
+            position={[s.lat, s.lng]}
+            icon={statusMarkerIcon(s.mode === "live")}
+            eventHandlers={{ click: () => { setSelectedStatus(s); setSelected(null); setAddCoords(null); } }}
+          />
+        ))}
       </MapContainer>
 
       {/* ── Add place hint ────────────────────────────────────────────── */}
-      <div className="absolute bottom-4 left-1/2 z-[1000] -translate-x-1/2 rounded-full border border-gray-200 bg-white/90 px-3 py-1.5 text-xs text-gray-400 shadow">
+      <div className="absolute bottom-4 left-1/2 z-[1000] -translate-x-1/2 rounded-full border border-white/50 px-3 py-1.5 text-xs font-medium text-gray-500 shadow-md"
+           style={{ background: "rgba(255,255,255,0.85)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}>
         💡 Click anywhere on the map to add a place
       </div>
+
+      {/* ── Status info card ─────────────────────────────────────────── */}
+      {selectedStatus && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[999] bg-white rounded-2xl shadow-xl p-4 w-80">
+          <button
+            onClick={() => setSelectedStatus(null)}
+            aria-label="Close status card"
+            className="absolute top-3 right-3 text-slate-400 hover:text-slate-600"
+          >
+            ✕
+          </button>
+          <div className="flex items-center gap-3 mb-2">
+            <div
+              className={`w-9 h-9 rounded-full flex items-center justify-center text-white font-bold ${
+                selectedStatus.mode === "live" ? "bg-emerald-500" : "bg-violet-500"
+              }`}
+            >
+              {selectedStatus.username?.[0]?.toUpperCase()}
+            </div>
+            <div>
+              <p className="font-bold text-slate-800">{selectedStatus.username}</p>
+              <p className="text-xs text-slate-500">
+                {ACTIVITY_EMOJIS[selectedStatus.activity_type]} {selectedStatus.activity_type}
+                {" · "}
+                {selectedStatus.mode === "live"
+                  ? `${timeLeft(selectedStatus.expires_at)} left`
+                  : new Date(selectedStatus.expires_at).toLocaleString()
+                }
+              </p>
+            </div>
+          </div>
+          {selectedStatus.message && (
+            <p className="text-sm text-slate-600 mb-2">"{selectedStatus.message}"</p>
+          )}
+          {selectedStatus.location_name && (
+            <p className="text-xs text-slate-400 mb-2">📍 {selectedStatus.location_name}</p>
+          )}
+          {selectedStatus.mode === "plan" && (
+            <>
+              <div className="flex gap-2 mt-2">
+                {[["going", "🙌 I'm in!"], ["maybe", "👀 Maybe"], ["no", "❌ Can't"]].map(([r, label]) => (
+                  <button
+                    key={r}
+                    onClick={() => handleRsvp(selectedStatus.id, r)}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      selectedStatus.my_rsvp === r
+                        ? "bg-violet-600 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-slate-400 mt-2 text-center">
+                🙌 {selectedStatus.rsvp_counts?.going || 0} going
+                {" · "}
+                👀 {selectedStatus.rsvp_counts?.maybe || 0} maybe
+              </p>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ── Add place modal ───────────────────────────────────────────── */}
       {addCoords && (
@@ -402,6 +573,15 @@ export default function Explore() {
           onAdded={(place) => { setPlaces((prev) => [place, ...prev]); setAddCoords(null); }}
         />
       )}
+
+      {/* ── Post status modal ─────────────────────────────────────────── */}
+      <PostStatusModal
+        open={showStatusModal}
+        onClose={() => setShowStatusModal(false)}
+        myStatus={myStatus}
+        onPosted={loadStatuses}
+        userLocation={null}
+      />
     </div>
   );
 }

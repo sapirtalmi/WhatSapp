@@ -20,6 +20,7 @@ import MapView, { Marker, Callout } from "react-native-maps";
 import { useLocalSearchParams, Stack } from "expo-router";
 import { getPlaces, createPlace, deletePlace } from "../../src/api/places";
 import { getCollections } from "../../src/api/collections";
+import { getTravelGuide, analyzePhoto } from "../../src/api/ai";
 import api from "../../src/api/axios";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -209,6 +210,29 @@ export default function CollectionDetail() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Travel guide
+  const [guideVisible, setGuideVisible] = useState(false);
+  const [guide, setGuide] = useState(null);
+  const [guideLoading, setGuideLoading] = useState(false);
+
+  // AI photo suggestion
+  const [aiSuggestion, setAiSuggestion] = useState(null);
+
+  async function handleTravelGuide() {
+    setGuide(null);
+    setGuideVisible(true);
+    setGuideLoading(true);
+    try {
+      const res = await getTravelGuide(collectionId);
+      setGuide(res);
+    } catch {
+      Alert.alert("AI", "Could not generate travel guide.");
+      setGuideVisible(false);
+    } finally {
+      setGuideLoading(false);
+    }
+  }
+
   function loadPlaces(isRefresh = false) {
     if (!isRefresh) setLoading(true);
     else setRefreshing(true);
@@ -231,7 +255,7 @@ export default function CollectionDetail() {
   const filteredPlaces = activeType ? places.filter((p) => p.type === activeType) : places;
 
   function openAddModal(pin = null) {
-    setName(""); setAddress(""); setDescription(""); setType(null); setExtraData({});
+    setName(""); setAddress(""); setDescription(""); setType(null); setExtraData({}); setAiSuggestion(null);
     if (pin) {
       setLat(String(pin.latitude.toFixed(6)));
       setLng(String(pin.longitude.toFixed(6)));
@@ -282,6 +306,13 @@ export default function CollectionDetail() {
       }
     }
     setExtraData((prev) => ({ ...prev, photos: [...(prev.photos ?? []), ...urls] }));
+    // Analyze first uploaded photo if no type selected yet
+    if (urls.length > 0 && !type) {
+      try {
+        const analysis = await analyzePhoto(urls[0]);
+        if (analysis.confidence !== "low") setAiSuggestion(analysis);
+      } catch { /* ignore */ }
+    }
     setUploadingPhoto(false);
   }
 
@@ -546,9 +577,14 @@ export default function CollectionDetail() {
             <Text style={[styles.toggleText, view === "map" && styles.toggleTextActive]}>🗺 Map</Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.addBtn} onPress={() => openAddModal(null)}>
-          <Text style={styles.addBtnText}>+ Add</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <TouchableOpacity style={styles.guideBtn} onPress={handleTravelGuide}>
+            <Text style={styles.guideBtnText}>✈️ Guide</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.addBtn} onPress={() => openAddModal(null)}>
+            <Text style={styles.addBtnText}>+ Add</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Type filter chips */}
@@ -636,6 +672,28 @@ export default function CollectionDetail() {
         />
       )}
 
+      {/* Travel guide modal */}
+      <Modal visible={guideVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => { setGuideVisible(false); setGuide(null); }}>
+        <View style={{ flex: 1, backgroundColor: "#fff" }}>
+          <View style={styles.guideHeader}>
+            <Text style={styles.guideTitle} numberOfLines={1}>{guide?.title ?? "✈️ Travel Guide"}</Text>
+            <TouchableOpacity onPress={() => { setGuideVisible(false); setGuide(null); }}>
+              <Text style={styles.modalClose}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          {guideLoading ? (
+            <View style={styles.center}>
+              <ActivityIndicator color="#0d9488" size="large" />
+              <Text style={{ color: "#94a3b8", marginTop: 12, fontSize: 14 }}>Generating your travel guide…</Text>
+            </View>
+          ) : guide ? (
+            <ScrollView style={styles.guideBody} contentContainerStyle={{ paddingBottom: 40 }}>
+              <Text style={styles.guideText}>{guide.guide}</Text>
+            </ScrollView>
+          ) : null}
+        </View>
+      </Modal>
+
       {/* Add place modal */}
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -674,6 +732,25 @@ export default function CollectionDetail() {
                 </TouchableOpacity>
               ))}
             </View>
+
+            {aiSuggestion && (
+              <View style={styles.aiSuggestChip}>
+                <Text style={styles.aiSuggestText}>
+                  AI suggests: {TYPE_BADGE[aiSuggestion.type] ? PLACE_TYPES.find((t) => t.value === aiSuggestion.type)?.label : aiSuggestion.type}
+                  {aiSuggestion.name_suggestion ? ` · "${aiSuggestion.name_suggestion}"` : ""}
+                </Text>
+                <TouchableOpacity onPress={() => {
+                  handleTypeChange(aiSuggestion.type);
+                  if (aiSuggestion.name_suggestion && !name) setName(aiSuggestion.name_suggestion);
+                  setAiSuggestion(null);
+                }}>
+                  <Text style={styles.aiSuggestApply}>Apply →</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setAiSuggestion(null)}>
+                  <Text style={styles.aiSuggestDismiss}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {type && (
               <View style={styles.extraSection}>
@@ -770,4 +847,20 @@ const styles = StyleSheet.create({
   saveBtn: { backgroundColor: "#4f46e5", borderRadius: 10, padding: 14, alignItems: "center" },
   saveBtnDisabled: { opacity: 0.6 },
   saveBtnText: { color: "#fff", fontWeight: "600", fontSize: 15 },
+
+  // Travel guide button
+  guideBtn: { backgroundColor: "#0d9488", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
+  guideBtnText: { color: "#fff", fontSize: 13, fontWeight: "600" },
+
+  // Travel guide modal
+  guideHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 24, paddingTop: 36, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
+  guideTitle: { fontSize: 20, fontWeight: "800", color: "#111827", flex: 1, marginRight: 12 },
+  guideBody: { flex: 1, paddingHorizontal: 24, paddingTop: 20 },
+  guideText: { fontSize: 15, color: "#374151", lineHeight: 26 },
+
+  // AI suggestion chip
+  aiSuggestChip: { flexDirection: "row", alignItems: "center", backgroundColor: "#f0fdf9", borderRadius: 10, padding: 10, marginBottom: 14, borderWidth: 1, borderColor: "#2dd4bf", gap: 8 },
+  aiSuggestText: { flex: 1, fontSize: 12, color: "#0d9488", fontWeight: "500" },
+  aiSuggestApply: { fontSize: 12, color: "#0d9488", fontWeight: "700" },
+  aiSuggestDismiss: { fontSize: 13, color: "#9ca3af" },
 });
