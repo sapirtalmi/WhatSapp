@@ -17,7 +17,9 @@ from ..models.place import Place, PlaceType
 router = APIRouter(prefix="/ai", tags=["ai"])
 
 UPLOAD_DIR = Path(__file__).parent.parent.parent / "uploads"
-MODEL = "gemini-2.0-flash"
+MODEL = "gemini-3-flash-preview"
+
+_genai_client: genai.Client | None = None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -27,8 +29,11 @@ def _require_key():
         raise HTTPException(status_code=503, detail="AI service not configured. Add GEMINI_API_KEY to .env")
 
 
-def _client():
-    return genai.Client(api_key=settings.gemini_api_key)
+def _client() -> genai.Client:
+    global _genai_client
+    if _genai_client is None:
+        _genai_client = genai.Client(api_key=settings.gemini_api_key)
+    return _genai_client
 
 
 def _generate(prompt: str) -> str:

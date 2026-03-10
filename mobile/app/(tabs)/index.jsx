@@ -15,6 +15,8 @@ import {
   KeyboardAvoidingView,
   Alert,
   Animated,
+  PanResponder,
+  useWindowDimensions,
 } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location";
@@ -211,7 +213,7 @@ function PostStatusModal({ visible, onClose, myStatus, onPosted, pinnedLocation,
       const detail = err?.response?.data?.detail;
       const msg = Array.isArray(detail)
         ? detail.map((d) => d.msg || JSON.stringify(d)).join("\n")
-        : detail ? String(detail) : "Could not post status. Try again.";
+        : detail ? String(detail) : (err?.message || "Could not post status. Try again.");
       Alert.alert("Error", msg);
     } finally {
       setPosting(false);
@@ -495,6 +497,40 @@ export default function ExploreScreen() {
   // Map type
   const [mapType, setMapType] = useState("standard");
 
+  // Swipeable bottom sheet
+  const { height: screenH } = useWindowDimensions();
+  const PEEK_H = 130;
+  const EXPANDED_H = Math.round(screenH * 0.55);
+  const MAX_TRANSLATE = EXPANDED_H - PEEK_H;
+  const sheetTranslateY = useRef(new Animated.Value(MAX_TRANSLATE)).current;
+  const sheetStartY = useRef(MAX_TRANSLATE);
+  const [sheetExpanded, setSheetExpanded] = useState(false);
+
+  function snapSheet(expand) {
+    Animated.spring(sheetTranslateY, {
+      toValue: expand ? 0 : MAX_TRANSLATE,
+      useNativeDriver: true,
+      tension: 68, friction: 11,
+    }).start();
+    setSheetExpanded(expand);
+  }
+
+  const sheetPan = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gs) =>
+      Math.abs(gs.dy) > 6 && Math.abs(gs.dy) > Math.abs(gs.dx),
+    onPanResponderGrant: () => {
+      sheetTranslateY.stopAnimation((val) => { sheetStartY.current = val; });
+    },
+    onPanResponderMove: (_, gs) => {
+      const next = Math.max(0, Math.min(MAX_TRANSLATE, sheetStartY.current + gs.dy));
+      sheetTranslateY.setValue(next);
+    },
+    onPanResponderRelease: (_, gs) => {
+      const cur = sheetStartY.current + gs.dy;
+      snapSheet(gs.vy < -0.4 || cur < MAX_TRANSLATE * 0.5);
+    },
+  })).current;
+
   // Statuses
   const [statuses, setStatuses] = useState([]);
   const [myStatus, setMyStatus] = useState(null);
@@ -502,6 +538,8 @@ export default function ExploreScreen() {
   const [selectedStatus, setSelectedStatus] = useState(null);
   const [pickingStatusPin, setPickingStatusPin] = useState(false);
   const [pendingStatusPin, setPendingStatusPin] = useState(null);
+  const [showFriendsPanel, setShowFriendsPanel] = useState(false);
+  const [statusRefreshing, setStatusRefreshing] = useState(false);
 
   // Add place
   const [pendingPin, setPendingPin] = useState(null);
@@ -580,7 +618,9 @@ export default function ExploreScreen() {
       const [feed, my] = await Promise.all([getStatusFeed(), getMyStatus()]);
       setStatuses(feed || []);
       setMyStatus(my || null);
-    } catch { /* silent */ }
+    } catch (err) {
+      console.warn("loadStatuses error:", err?.response?.data ?? err?.message ?? err);
+    }
   }, []);
 
   useEffect(() => {
@@ -673,8 +713,9 @@ export default function ExploreScreen() {
     try {
       const data = await getRecommendations();
       setRecommendations(data.recommendations);
-    } catch {
-      Alert.alert("AI", "Could not load recommendations. Try again.");
+    } catch (err) {
+      const msg = err?.response?.data?.detail || err?.message || String(err);
+      Alert.alert("AI Error", msg);
       setSelectedUser("all");
     } finally {
       setRecsLoading(false);
@@ -782,7 +823,10 @@ export default function ExploreScreen() {
   const FILTER_TOP = SEARCH_TOP + 52;
 
   return (
-    <View style={styles.root}>
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       {/* ── Map ─────────────────────────────────────────────────────── */}
       <MapView
         ref={mapRef}
@@ -1055,7 +1099,7 @@ export default function ExploreScreen() {
         </View>
       ) : (nlLoading || nlResults) ? (
         /* ── NL search results ── */
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
+        <View style={[styles.sheetTall, { paddingBottom: insets.bottom + 20 }]}>
           <View style={styles.sheetHandle} />
           <TouchableOpacity style={styles.sheetClose} onPress={() => { setNlResults(null); setNlMode(false); setNlQuery(""); }}>
             <Ionicons name="close-circle" size={24} color="#d1d5db" />
@@ -1145,17 +1189,29 @@ export default function ExploreScreen() {
           ) : null}
         </View>
       ) : (
-        /* ── Peek: count + horizontal cards ── */
-        <View style={[styles.sheetPeek, { paddingBottom: insets.bottom + 12 }]}>
-          <View style={styles.sheetHandle} />
+        /* ── Swipeable sheet ── */
+        <Animated.View style={[
+          styles.sheetFull,
+          { height: EXPANDED_H, paddingBottom: insets.bottom + 12, transform: [{ translateY: sheetTranslateY }] },
+        ]}>
+          {/* Drag handle */}
+          <View {...sheetPan.panHandlers} style={{ paddingVertical: 10, alignItems: "center" }}>
+            <View style={styles.sheetHandle} />
+          </View>
+
           <View style={styles.peekHeader}>
             <Text style={styles.peekCount}>
               {loading ? "Loading…" : `${places.length} place${places.length !== 1 ? "s" : ""}`}
             </Text>
             {loading && <ActivityIndicator size="small" color="#2dd4bf" />}
+            {!loading && places.length > 0 && (
+              <TouchableOpacity onPress={() => snapSheet(!sheetExpanded)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name={sheetExpanded ? "chevron-down" : "chevron-up"} size={18} color="#9ca3af" />
+              </TouchableOpacity>
+            )}
           </View>
 
-          {!loading && places.length > 0 && (
+          {!loading && places.length > 0 && !sheetExpanded && (
             <FlatList
               horizontal
               data={places.slice(0, 12)}
@@ -1187,10 +1243,38 @@ export default function ExploreScreen() {
             />
           )}
 
+          {!loading && places.length > 0 && sheetExpanded && (
+            <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
+              {places.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  onPress={() => {
+                    setSelectedPlace(item);
+                    snapSheet(false);
+                    mapRef.current?.animateToRegion({
+                      latitude: item.lat, longitude: item.lng,
+                      latitudeDelta: 0.012, longitudeDelta: 0.012,
+                    }, 500);
+                  }}
+                  activeOpacity={0.75}
+                  style={styles.listCard}
+                >
+                  <View style={[styles.cardAccent, { backgroundColor: TYPE_COLORS[item.type] ?? "#2dd4bf" }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
+                    {item.address ? <Text style={styles.cardAddr} numberOfLines={1}>{item.address}</Text> : null}
+                    {item.owner_username ? <Text style={styles.cardOwner} numberOfLines={1}>by {item.owner_username}</Text> : null}
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color="#d1d5db" />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
           {!loading && places.length === 0 && (
             <Text style={styles.emptyText}>No places yet — tap the map to add one!</Text>
           )}
-        </View>
+        </Animated.View>
       )}
 
       {/* ── Broadcast FAB ────────────────────────────────────────────── */}
@@ -1207,6 +1291,174 @@ export default function ExploreScreen() {
       >
         <Text style={{ fontSize: 22 }}>{myStatus ? "📍" : "✈️"}</Text>
       </TouchableOpacity>
+
+      {/* ── Friends Status FAB ───────────────────────────────────────── */}
+      <TouchableOpacity
+        style={{
+          position: "absolute", bottom: 192, left: 16, zIndex: 25,
+          width: 52, height: 52, borderRadius: 26,
+          backgroundColor: "#FFFFFF",
+          borderWidth: 2, borderColor: statuses.length > 0 ? "#3b82f6" : "#d1d5db",
+          alignItems: "center", justifyContent: "center",
+          shadowColor: "#3b82f6", shadowOpacity: statuses.length > 0 ? 0.3 : 0.08, shadowRadius: 10, elevation: 8,
+        }}
+        onPress={async () => {
+          setShowFriendsPanel(true);
+          setStatusRefreshing(true);
+          await loadStatuses();
+          setStatusRefreshing(false);
+        }}
+      >
+        <Ionicons name="people" size={22} color={statuses.length > 0 ? "#3b82f6" : "#9ca3af"} />
+        {statuses.length > 0 && (
+          <View style={{
+            position: "absolute", top: -4, right: -4,
+            backgroundColor: "#F4743B", borderRadius: 10,
+            minWidth: 18, height: 18, alignItems: "center", justifyContent: "center",
+            paddingHorizontal: 4, borderWidth: 2, borderColor: "#fff",
+          }}>
+            <Text style={{ color: "#fff", fontSize: 10, fontWeight: "800" }}>{statuses.length}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+
+      {/* ── Friends Status Panel ─────────────────────────────────────── */}
+      <Modal
+        visible={showFriendsPanel}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowFriendsPanel(false)}
+      >
+        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+          {/* Backdrop */}
+          <TouchableOpacity
+            style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.25)" }}
+            activeOpacity={1}
+            onPress={() => setShowFriendsPanel(false)}
+          />
+          <View style={{
+            backgroundColor: "#FFFFFF", borderTopLeftRadius: 28, borderTopRightRadius: 28,
+            maxHeight: "75%", paddingBottom: insets.bottom + 16,
+          }}>
+            {/* Handle */}
+            <View style={{ paddingTop: 12, paddingBottom: 4, alignItems: "center" }}>
+              <View style={{ width: 40, height: 4, backgroundColor: "#EDE9E3", borderRadius: 99 }} />
+            </View>
+
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 12 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="people" size={20} color="#3b82f6" />
+                <Text style={{ fontSize: 18, fontWeight: "700", color: "#1C1C1E" }}>Who's Out</Text>
+                <View style={{ backgroundColor: "#EFF6FF", borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 }}>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#3b82f6" }}>{statuses.length}</Text>
+                </View>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <TouchableOpacity
+                  onPress={async () => { setStatusRefreshing(true); await loadStatuses(); setStatusRefreshing(false); }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  {statusRefreshing
+                    ? <ActivityIndicator size="small" color="#3b82f6" />
+                    : <Ionicons name="refresh-outline" size={20} color="#3b82f6" />}
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setShowFriendsPanel(false)}>
+                  <Ionicons name="close-circle" size={24} color="#d1d5db" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {statusRefreshing ? (
+              <View style={{ alignItems: "center", paddingVertical: 40 }}>
+                <ActivityIndicator size="large" color="#3b82f6" />
+                <Text style={{ color: "#9ca3af", fontSize: 13, marginTop: 12 }}>Loading…</Text>
+              </View>
+            ) : statuses.length === 0 ? (
+              <View style={{ alignItems: "center", paddingVertical: 40 }}>
+                <Ionicons name="people-outline" size={48} color="#e5e7eb" />
+                <Text style={{ color: "#9ca3af", fontSize: 14, marginTop: 12 }}>No friends are active right now</Text>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+                {statuses.map((s) => {
+                  const isLive = s.mode === "live";
+                  const isMe = s.user_id === currentUser?.id;
+                  const color = isLive ? "#F4743B" : "#7C5CBF";
+                  return (
+                    <TouchableOpacity
+                      key={s.id}
+                      activeOpacity={0.75}
+                      onPress={() => {
+                        setShowFriendsPanel(false);
+                        setSelectedStatus(s);
+                        mapRef.current?.animateToRegion({
+                          latitude: s.lat, longitude: s.lng,
+                          latitudeDelta: 0.025, longitudeDelta: 0.025,
+                        }, 600);
+                      }}
+                      style={{
+                        flexDirection: "row", alignItems: "center",
+                        backgroundColor: isMe ? "#FFF8F5" : "#FAFAF9",
+                        borderRadius: 16, padding: 12, marginBottom: 8,
+                        borderWidth: 1.5, borderColor: isMe ? "#F4743B30" : "#F3F0EB",
+                      }}
+                    >
+                      {/* Avatar */}
+                      <View style={{
+                        width: 44, height: 44, borderRadius: 22,
+                        backgroundColor: color, alignItems: "center", justifyContent: "center",
+                        marginRight: 12, flexShrink: 0,
+                      }}>
+                        <Text style={{ color: "#fff", fontWeight: "800", fontSize: 18 }}>
+                          {s.username?.[0]?.toUpperCase()}
+                        </Text>
+                      </View>
+
+                      {/* Info */}
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                          <Text style={{ fontWeight: "700", fontSize: 15, color: "#1C1C1E" }}>
+                            {isMe ? "You" : s.username}
+                          </Text>
+                          <View style={{
+                            backgroundColor: isLive ? "#FFF0EA" : "#F0EBFF",
+                            borderRadius: 99, paddingHorizontal: 7, paddingVertical: 1,
+                          }}>
+                            <Text style={{ fontSize: 10, fontWeight: "700", color }}>
+                              {isLive ? "LIVE" : "PLAN"}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                          <Ionicons name={ACTIVITY_ICONS[s.activity_type] ?? "ellipsis-horizontal-circle-outline"} size={13} color={color} />
+                          <Text style={{ fontSize: 13, color: "#6B7280" }}>
+                            {s.activity_type}
+                            {s.message ? ` · "${s.message}"` : ""}
+                          </Text>
+                        </View>
+
+                        {s.location_name ? (
+                          <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }} numberOfLines={1}>
+                            📍 {s.location_name}
+                          </Text>
+                        ) : null}
+
+                        <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>
+                          {isLive ? `⏱ ${timeLeft(s.expires_at)} left` : `📅 ${new Date(s.expires_at).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`}
+                        </Text>
+                      </View>
+
+                      <Ionicons name="location-outline" size={18} color="#d1d5db" style={{ marginLeft: 8 }} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* ── Status detail card ───────────────────────────────────────── */}
       {selectedStatus && (
@@ -1463,7 +1715,7 @@ export default function ExploreScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -1544,6 +1796,29 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
 
+  // Bottom sheet – tall (NL search results, keyboard-safe)
+  sheetTall: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    maxHeight: "65%",
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    paddingTop: 10, paddingHorizontal: 20,
+    shadowColor: "#8B7355", shadowOpacity: 0.12, shadowRadius: 20,
+    shadowOffset: { width: 0, height: -6 }, elevation: 14,
+    zIndex: 20,
+  },
+
+  // Bottom sheet – swipeable main sheet
+  sheetFull: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    shadowColor: "#8B7355", shadowOpacity: 0.09, shadowRadius: 16,
+    shadowOffset: { width: 0, height: -4 }, elevation: 8,
+    zIndex: 20,
+  },
+
   // Bottom sheet – peek (no selection)
   sheetPeek: {
     position: "absolute", bottom: 0, left: 0, right: 0,
@@ -1586,6 +1861,13 @@ const styles = StyleSheet.create({
     borderRadius: 16, padding: 12,
     shadowColor: "#8B7355", shadowOpacity: 0.07, shadowRadius: 12,
     shadowOffset: { width: 0, height: 2 }, elevation: 3,
+    overflow: "hidden",
+  },
+  listCard: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: "#FFFFFF", borderRadius: 14, padding: 12, marginBottom: 8,
+    shadowColor: "#8B7355", shadowOpacity: 0.05, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 1 }, elevation: 2,
     overflow: "hidden",
   },
   cardAccent: { position: "absolute", left: 0, top: 0, bottom: 0, width: 3, borderRadius: 0 },
@@ -1709,6 +1991,40 @@ const styles = StyleSheet.create({
   recName: { fontSize: 14, fontWeight: "700", color: "#1C1C1E", flex: 1 },
   recWhy: { fontSize: 13, color: "#6B7280", marginTop: 4, lineHeight: 18 },
   recAddr: { fontSize: 12, color: "#F4743B", marginTop: 3, fontWeight: "600" },
+
+  // Status strip
+  statusStrip: {
+    position: "absolute", bottom: 160, left: 0, right: 0, zIndex: 20,
+    backgroundColor: "transparent",
+  },
+  statusStripContent: {
+    paddingHorizontal: 12, gap: 8,
+  },
+  statusBubble: {
+    width: 56, alignItems: "center",
+  },
+  statusBubbleCircle: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: "center", justifyContent: "center",
+    shadowColor: "#000", shadowOpacity: 0.12, shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 }, elevation: 4,
+  },
+  statusBubbleInitial: {
+    color: "#fff", fontWeight: "800", fontSize: 15,
+  },
+  statusBubbleBadge: {
+    position: "absolute", top: -2, right: -2,
+    width: 14, height: 14, borderRadius: 7,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1.5, borderColor: "#fff",
+  },
+  statusBubbleBadgeText: {
+    color: "#fff", fontSize: 7, fontWeight: "800",
+  },
+  statusBubbleLabel: {
+    fontSize: 10, color: "#6B7280", marginTop: 2, fontWeight: "600",
+    maxWidth: 56, textAlign: "center",
+  },
 
   // AI location info
   aiDesc: { fontSize: 14, color: "#334155", lineHeight: 21, marginBottom: 14 },

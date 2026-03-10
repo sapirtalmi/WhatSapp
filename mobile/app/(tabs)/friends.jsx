@@ -23,6 +23,38 @@ import { getStatusFeed } from "../../src/api/status";
 
 const ACTIVITY_EMOJIS = { coffee:"☕", drinks:"🍺", study:"📚", hike:"🥾", food:"🍕", event:"🎉", hangout:"🛋️", work:"💼", other:"🌀" };
 
+function timeLeft(expiresAt) {
+  const diff = Math.max(0, new Date(expiresAt) - Date.now());
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m left`;
+  const hrs = Math.floor(mins / 60);
+  return `${hrs}h left`;
+}
+
+function StatusPill({ status }) {
+  const isLive = status.mode === "live";
+  const accent = isLive ? "#F4743B" : "#7C5CBF";
+  const bg = isLive ? "#FFF4EE" : "#F5F0FF";
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4, marginTop: 5 }}>
+      <View style={{
+        flexDirection: "row", alignItems: "center", gap: 4,
+        backgroundColor: bg, borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3,
+        borderWidth: 1, borderColor: accent + "30",
+      }}>
+        <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: accent }} />
+        <Text style={{ fontSize: 10, fontWeight: "700", color: accent, textTransform: "uppercase", letterSpacing: 0.5 }}>
+          {isLive ? "Live" : "Plan"}
+        </Text>
+      </View>
+      <Text style={{ fontSize: 12, color: "#374151", fontWeight: "500" }} numberOfLines={1}>
+        {ACTIVITY_EMOJIS[status.activity_type]} {status.message || status.location_name || status.activity_type}
+      </Text>
+      <Text style={{ fontSize: 11, color: "#9CA3AF" }}>· {timeLeft(status.expires_at)}</Text>
+    </View>
+  );
+}
+
 function useDebounce(value, delay = 400) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -223,6 +255,24 @@ export default function FriendsScreen() {
           </View>
         )}
 
+        {/* Active friends banner */}
+        {friends.filter(f => friendStatuses[f.user?.id]).length > 0 && (
+          <View style={[styles.section, { backgroundColor: "#FFF8F5", borderLeftWidth: 3, borderLeftColor: "#F4743B" }]}>
+            <Text style={[styles.sectionTitle, { color: "#F4743B" }]}>
+              🟠 Out right now ({friends.filter(f => friendStatuses[f.user?.id]).length})
+            </Text>
+            {friends.filter(f => friendStatuses[f.user?.id]).map(item => (
+              <View key={item.id} style={[styles.userRow, { alignItems: "flex-start" }]}>
+                <Avatar name={item.user?.username} />
+                <View style={styles.userInfo}>
+                  <Text style={styles.userName}>{item.user?.username}</Text>
+                  <StatusPill status={friendStatuses[item.user.id]} />
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
         {/* Friends list */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>My friends ({friends.length})</Text>
@@ -239,11 +289,7 @@ export default function FriendsScreen() {
                 <View style={styles.userInfo}>
                   <Text style={styles.userName}>{item.user?.username}</Text>
                   {friendStatuses[item.user?.id] ? (
-                    <Text style={[styles.userEmail, { color: "#22c55e" }]}>
-                      {ACTIVITY_EMOJIS[friendStatuses[item.user.id].activity_type]}{" "}
-                      {friendStatuses[item.user.id].location_name || friendStatuses[item.user.id].activity_type}
-                      {friendStatuses[item.user.id].mode === "live" ? " · now" : " · upcoming"}
-                    </Text>
+                    <StatusPill status={friendStatuses[item.user.id]} />
                   ) : (
                     <Text style={styles.userEmail}>{item.user?.email}</Text>
                   )}

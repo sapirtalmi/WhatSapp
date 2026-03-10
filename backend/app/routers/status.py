@@ -165,7 +165,7 @@ def _load_status_with_relations(status_id: int, db: Session) -> UserStatus | Non
             joinedload(UserStatus.rsvps).joinedload(StatusRSVP.user),
         )
         .where(UserStatus.id == status_id)
-    ).scalar_one_or_none()
+    ).unique().scalar_one_or_none()
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -293,7 +293,7 @@ def get_my_status(
             )
         )
         .order_by(UserStatus.created_at.desc())
-    ).scalar_one_or_none()
+    ).unique().scalars().first()
 
     if s is None:
         return None
