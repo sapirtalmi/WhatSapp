@@ -111,7 +111,7 @@ async def generate_collection_description(
             select(MapCollection)
             .where(MapCollection.id == req.collection_id, MapCollection.owner_id == current_user.id)
             .options(joinedload(MapCollection.places))
-        ).scalar_one_or_none()
+        ).unique().scalar_one_or_none()
         if not col:
             raise HTTPException(status_code=404, detail="Collection not found.")
         title = title or col.title
@@ -134,10 +134,18 @@ Return ONLY the description text, no JSON, no quotes."""
 
 # ── 3. Natural Language Search ────────────────────────────────────────────────
 
+class BBox(BaseModel):
+    min_lat: float
+    max_lat: float
+    min_lng: float
+    max_lng: float
+
+
 class NaturalSearchRequest(BaseModel):
     query: str
     lat: float | None = None
     lon: float | None = None
+    bbox: BBox | None = None
 
 
 class NaturalSearchPlace(BaseModel):
@@ -187,6 +195,14 @@ Return ONLY JSON with:
     valid_types = [t.value for t in PlaceType]
     if ai_type and ai_type in valid_types:
         stmt = stmt.where(Place.type == PlaceType(ai_type))
+
+    if req.bbox:
+        from sqlalchemy import func as sqlfunc
+        b = req.bbox
+        stmt = stmt.where(
+            sqlfunc.ST_Y(Place.location).between(b.min_lat, b.max_lat),
+            sqlfunc.ST_X(Place.location).between(b.min_lng, b.max_lng),
+        )
 
     if keywords:
         stmt = stmt.where(
@@ -344,7 +360,7 @@ async def generate_travel_guide(
             or_(MapCollection.owner_id == current_user.id, MapCollection.is_public == True),
         )
         .options(joinedload(MapCollection.places))
-    ).scalar_one_or_none()
+    ).unique().scalar_one_or_none()
 
     if not col:
         raise HTTPException(status_code=404, detail="Collection not found.")
