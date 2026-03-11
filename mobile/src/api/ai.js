@@ -11,8 +11,8 @@ export async function generateCollectionDescription(collectionId, title) {
   return res.data;
 }
 
-export async function naturalSearch(query, lat = null, lon = null) {
-  const res = await api.post("/ai/natural-search", { query, lat, lon });
+export async function naturalSearch(query, lat = null, lon = null, bbox = null) {
+  const res = await api.post("/ai/natural-search", { query, lat, lon, bbox });
   return res.data;
 }
 

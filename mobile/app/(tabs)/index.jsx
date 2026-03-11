@@ -169,6 +169,8 @@ function PostStatusModal({ visible, onClose, myStatus, onPosted, pinnedLocation,
   const [visibility, setVisibility] = useState("friends");
   const [posting, setPosting] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [customExpiryDate, setCustomExpiryDate] = useState(new Date(Date.now() + 7200000)); // 2h default
+  const [showCustomPicker, setShowCustomPicker] = useState(false);
   const [gpsLocation, setGpsLocation] = useState(null);
 
   // Pre-fetch GPS when modal opens
@@ -201,7 +203,9 @@ function PostStatusModal({ visible, onClose, myStatus, onPosted, pinnedLocation,
         lat: effectiveLoc.lat,
         lng: effectiveLoc.lng,
         location_name: locationName.trim() || null,
-        expires_at: mode === "live" ? expiry : planDate.toISOString(),
+        expires_at: mode === "live"
+          ? (expiry === "custom" ? customExpiryDate.toISOString() : expiry)
+          : planDate.toISOString(),
         visibility,
       };
       await createStatus(body);
@@ -360,24 +364,50 @@ function PostStatusModal({ visible, onClose, myStatus, onPosted, pinnedLocation,
             {mode === "live" && (
               <View>
                 <Text style={{ fontWeight: "700", color: "#A09A93", marginBottom: 10, fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase" }}>HOW LONG?</Text>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  {[["1h", "1 hour"], ["3h", "3 hours"], ["tonight", "Tonight"]].map(([val, label]) => {
+                <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                  {[["1h", "1 hr"], ["3h", "3 hrs"], ["tonight", "Tonight"], ["custom", "Custom…"]].map(([val, label]) => {
                     const sel = expiry === val;
                     return (
                       <TouchableOpacity
                         key={val}
-                        onPress={() => setExpiry(val)}
+                        onPress={() => { setExpiry(val); if (val === "custom") setShowCustomPicker(true); }}
                         style={{
-                          flex: 1, paddingVertical: 12, borderRadius: 50, alignItems: "center",
+                          flex: 1, minWidth: "22%", paddingVertical: 12, borderRadius: 50, alignItems: "center",
                           backgroundColor: sel ? "#FEF0EA" : "#fff",
                           borderWidth: 1.5, borderColor: sel ? "#F4743B" : "#EDE9E3",
                         }}
                       >
-                        <Text style={{ fontWeight: "600", color: sel ? "#F4743B" : "#6B7280" }}>{label}</Text>
+                        <Text style={{ fontWeight: "600", color: sel ? "#F4743B" : "#6B7280", fontSize: 13 }}>{label}</Text>
                       </TouchableOpacity>
                     );
                   })}
                 </View>
+                {expiry === "custom" && (
+                  <>
+                    <TouchableOpacity
+                      onPress={() => setShowCustomPicker(true)}
+                      style={{
+                        marginTop: 10, backgroundColor: "#fff", borderRadius: 16, padding: 14,
+                        flexDirection: "row", alignItems: "center", gap: 8,
+                        shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
+                      }}
+                    >
+                      <Ionicons name="time-outline" size={17} color="#F4743B" />
+                      <Text style={{ color: "#1C1C1E", fontSize: 15 }}>
+                        Until {customExpiryDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {" · "}{customExpiryDate.toLocaleDateString([], { month: "short", day: "numeric" })}
+                      </Text>
+                    </TouchableOpacity>
+                    {showCustomPicker && (
+                      <DateTimePicker
+                        value={customExpiryDate}
+                        mode="datetime"
+                        minimumDate={new Date()}
+                        onChange={(e, date) => { setShowCustomPicker(false); if (date) setCustomExpiryDate(date); }}
+                      />
+                    )}
+                  </>
+                )}
               </View>
             )}
 
@@ -489,6 +519,8 @@ export default function ExploreScreen() {
   const [nlQuery, setNlQuery] = useState("");
   const [nlResults, setNlResults] = useState(null);
   const [nlLoading, setNlLoading] = useState(false);
+  const [nlUseMapArea, setNlUseMapArea] = useState(false);
+  const currentRegion = useRef(null);
 
   // Recommendations
   const [recommendations, setRecommendations] = useState(null);
@@ -697,7 +729,17 @@ export default function ExploreScreen() {
     setNlLoading(true);
     setNlResults(null);
     try {
-      const results = await naturalSearch(nlQuery.trim(), userLocation?.lat ?? null, userLocation?.lng ?? null);
+      let bbox = null;
+      if (nlUseMapArea && currentRegion.current) {
+        const r = currentRegion.current;
+        bbox = {
+          min_lat: r.latitude - r.latitudeDelta / 2,
+          max_lat: r.latitude + r.latitudeDelta / 2,
+          min_lng: r.longitude - r.longitudeDelta / 2,
+          max_lng: r.longitude + r.longitudeDelta / 2,
+        };
+      }
+      const results = await naturalSearch(nlQuery.trim(), userLocation?.lat ?? null, userLocation?.lng ?? null, bbox);
       setNlResults(results);
     } catch {
       Alert.alert("AI Search", "Could not complete the search. Try again.");
@@ -836,6 +878,7 @@ export default function ExploreScreen() {
         showsCompass={false}
         mapType={mapType}
         onPress={handleMapPress}
+        onRegionChangeComplete={(r) => { currentRegion.current = r; }}
       >
         {searchPin && (
           <Marker
@@ -910,25 +953,42 @@ export default function ExploreScreen() {
 
         {/* NL search row */}
         {nlMode && (
-          <View style={styles.nlRow}>
-            <TextInput
-              style={styles.nlInput}
-              placeholder="e.g. cozy coffee shops near me…"
-              placeholderTextColor="#9ca3af"
-              value={nlQuery}
-              onChangeText={setNlQuery}
-              returnKeyType="search"
-              onSubmitEditing={handleNlSearch}
-              autoFocus
-            />
+          <View>
+            <View style={styles.nlRow}>
+              <TextInput
+                style={styles.nlInput}
+                placeholder="e.g. cozy coffee shops near me…"
+                placeholderTextColor="#9ca3af"
+                value={nlQuery}
+                onChangeText={setNlQuery}
+                returnKeyType="search"
+                onSubmitEditing={handleNlSearch}
+                autoFocus
+              />
+              <TouchableOpacity
+                onPress={handleNlSearch}
+                disabled={nlLoading || !nlQuery.trim()}
+                style={[styles.nlSendBtn, (!nlQuery.trim() || nlLoading) && { opacity: 0.4 }]}
+              >
+                {nlLoading
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Ionicons name="send" size={15} color="#fff" />}
+              </TouchableOpacity>
+            </View>
             <TouchableOpacity
-              onPress={handleNlSearch}
-              disabled={nlLoading || !nlQuery.trim()}
-              style={[styles.nlSendBtn, (!nlQuery.trim() || nlLoading) && { opacity: 0.4 }]}
+              onPress={() => setNlUseMapArea((v) => !v)}
+              style={{
+                flexDirection: "row", alignItems: "center", gap: 6,
+                alignSelf: "flex-start", marginTop: 6, marginLeft: 4,
+                paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99,
+                backgroundColor: nlUseMapArea ? "#eef2ff" : "rgba(255,255,255,0.85)",
+                borderWidth: 1, borderColor: nlUseMapArea ? "#6366f1" : "#e5e7eb",
+              }}
             >
-              {nlLoading
-                ? <ActivityIndicator size="small" color="#fff" />
-                : <Ionicons name="send" size={15} color="#fff" />}
+              <Ionicons name="map-outline" size={13} color={nlUseMapArea ? "#6366f1" : "#9ca3af"} />
+              <Text style={{ fontSize: 11, fontWeight: "600", color: nlUseMapArea ? "#6366f1" : "#9ca3af" }}>
+                Visible area only
+              </Text>
             </TouchableOpacity>
           </View>
         )}

@@ -427,6 +427,7 @@ export default function CollectionDetail() {
           value={extraData.comments ?? ""}
           onChangeText={(v) => setExtra("comments", v)}
           placeholder="Any notes…"
+          placeholderTextColor="#9CA3AF"
           multiline
         />
       </View>
@@ -441,7 +442,7 @@ export default function CollectionDetail() {
         </View>
         <View style={styles.extraGroup}>
           <Text style={styles.extraLabel}>Best time to visit</Text>
-          <TextInput style={styles.input} value={extraData.best_time_to_visit ?? ""} onChangeText={(v) => setExtra("best_time_to_visit", v)} placeholder="e.g. Saturday brunch" />
+          <TextInput style={styles.input} value={extraData.best_time_to_visit ?? ""} onChangeText={(v) => setExtra("best_time_to_visit", v)} placeholder="e.g. Saturday brunch" placeholderTextColor="#9CA3AF" />
         </View>
         <View style={styles.extraGroup}>
           <Text style={styles.extraLabel}>Price range</Text>
@@ -711,13 +712,17 @@ export default function CollectionDetail() {
               </Text>
             )}
 
-            <TextInput style={styles.input} placeholder="Name *" value={name} onChangeText={setName} />
-            <TextInput style={styles.input} placeholder="Address" value={address} onChangeText={setAddress} />
-            <TextInput style={[styles.input, styles.textArea]} placeholder="Description" value={description} onChangeText={setDescription} multiline />
+            <Text style={styles.fieldLabel}>Name *</Text>
+            <TextInput style={styles.input} placeholder="e.g. Blue Cafe" placeholderTextColor="#9CA3AF" value={name} onChangeText={setName} />
+            <Text style={styles.fieldLabel}>Address</Text>
+            <TextInput style={styles.input} placeholder="e.g. 12 Dizengoff St, Tel Aviv" placeholderTextColor="#9CA3AF" value={address} onChangeText={setAddress} />
+            <Text style={styles.fieldLabel}>Description</Text>
+            <TextInput style={[styles.input, styles.textArea]} placeholder="Add notes…" placeholderTextColor="#9CA3AF" value={description} onChangeText={setDescription} multiline />
 
+            <Text style={styles.fieldLabel}>Coordinates *</Text>
             <View style={styles.latlngRow}>
-              <TextInput style={[styles.input, styles.halfInput]} placeholder="Latitude *" value={lat} onChangeText={setLat} keyboardType="decimal-pad" />
-              <TextInput style={[styles.input, styles.halfInput]} placeholder="Longitude *" value={lng} onChangeText={setLng} keyboardType="decimal-pad" />
+              <TextInput style={[styles.input, styles.halfInput]} placeholder="Latitude" placeholderTextColor="#9CA3AF" value={lat} onChangeText={setLat} keyboardType="decimal-pad" />
+              <TextInput style={[styles.input, styles.halfInput]} placeholder="Longitude" placeholderTextColor="#9CA3AF" value={lng} onChangeText={setLng} keyboardType="decimal-pad" />
             </View>
 
             <Text style={styles.sectionLabel}>Type</Text>
@@ -822,11 +827,12 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 20, fontWeight: "bold", color: "#111827" },
   modalClose: { fontSize: 18, color: "#9ca3af", padding: 4 },
   coordsHint: { fontSize: 12, color: "#6b7280", marginBottom: 14, backgroundColor: "#f3f4f6", padding: 8, borderRadius: 8 },
-  input: { borderWidth: 1, borderColor: "#d1d5db", borderRadius: 10, padding: 12, marginBottom: 10, fontSize: 14, backgroundColor: "#fafafa" },
+  input: { borderWidth: 1, borderColor: "#d1d5db", borderRadius: 10, padding: 12, marginBottom: 10, fontSize: 14, backgroundColor: "#fafafa", color: "#111827" },
   textArea: { height: 70, textAlignVertical: "top" },
   latlngRow: { flexDirection: "row", gap: 8 },
   halfInput: { flex: 1 },
   sectionLabel: { fontSize: 13, fontWeight: "600", color: "#374151", marginBottom: 8 },
+  fieldLabel: { fontSize: 11, fontWeight: "700", color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5, marginTop: 4 },
   typeRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 20 },
   typeChip: { borderWidth: 1, borderColor: "#d1d5db", borderRadius: 99, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "#fff" },
   typeChipText: { fontSize: 12, color: "#374151" },
