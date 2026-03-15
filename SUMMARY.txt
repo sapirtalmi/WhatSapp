@@ -1,0 +1,533 @@
+WhatSapp Monorepo - Build Summary
+==================================
+
+========================================
+STEP 1 — Monorepo Initialization
+========================================
+
+ROOT FILES
+----------
+.gitignore          - Ignores node_modules, __pycache__, .env, venv, build artifacts
+README.md           - Project overview + quick-start for all three pieces
+docker-compose.yml  - postgis/postgis:15-3.3 on port 5432
+
+FRONTEND  (frontend/)
+---------------------
+package.json            - React 18, Vite, React Router v6, Tailwind CSS, Axios
+vite.config.js          - Vite config + dev-proxy /api -> localhost:8000
+tailwind.config.js      - Tailwind content paths
+postcss.config.js       - PostCSS pipeline (tailwindcss + autoprefixer)
+.env.example            - VITE_GOOGLE_MAPS_API_KEY, VITE_API_URL
+index.html              - Vite HTML entry point
+src/main.jsx            - React root + BrowserRouter
+src/App.jsx             - React Router v6 shell with a placeholder Home route
+src/index.css           - Tailwind directives (@tailwind base/components/utilities)
+src/api/axios.js        - Axios instance with JWT Authorization header interceptor
+
+BACKEND  (backend/)
+-------------------
+requirements.txt            - fastapi, uvicorn, sqlalchemy, alembic, geoalchemy2,
+                              psycopg2-binary, python-jose, passlib, pydantic-settings
+.env.example                - DATABASE_URL, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+main.py                     - FastAPI app entry point + CORS middleware
+alembic.ini                 - Alembic config file
+alembic/env.py              - Alembic env wired to pydantic Settings + Base.metadata
+alembic/script.py.mako      - Migration template (includes geoalchemy2 import)
+alembic/versions/           - Empty directory for generated migration files
+
+app/__init__.py             - Package marker
+app/config.py               - pydantic-settings Settings (reads .env)
+app/database.py             - SQLAlchemy engine, SessionLocal, get_db() dependency
+
+app/models/__init__.py      - DeclarativeBase + imports all models for Alembic discovery
+app/models/user.py          - User: id, username, email, hashed_password, is_active, created_at
+app/models/map_collection.py- MapCollection: id, owner_id, title, description, is_public, timestamps
+app/models/place.py         - Place: id, collection_id, name, description, address,
+                              location (PostGIS POINT SRID 4326), google_place_id
+app/models/friendship.py    - Friendship: id, requester_id, addressee_id,
+                              status (pending/accepted/blocked), unique pair constraint
+
+app/auth/__init__.py        - Package marker
+app/auth/security.py        - hash_password, verify_password, create_access_token, decode_access_token
+app/routers/__init__.py     - Package marker (routers to be added per feature)
+
+========================================
+STEP 2 — Auth Flow
+========================================
+
+BACKEND
+-------
+app/schemas/auth.py         - LoginRequest, TokenResponse (Pydantic schemas)
+app/schemas/user.py         - UserCreate, UserOut (Pydantic schemas)
+app/dependencies.py         - get_current_user: validates Bearer JWT, loads User from DB
+app/routers/auth.py         - POST /auth/register — creates user, returns UserOut
+                              POST /auth/login    — verifies credentials, returns JWT
+app/routers/users.py        - GET /users/me      — returns current user (protected)
+main.py                     - auth + users routers included
+
+FRONTEND
+--------
+src/context/AuthContext.jsx         - AuthProvider with user, login(), register(), logout()
+                                      restores session from localStorage on page load
+src/components/ProtectedRoute.jsx   - redirects unauthenticated users to /login
+src/pages/Login.jsx                 - email + password form, error display, link to register
+src/pages/Register.jsx              - username + email + password form, min 8-char password
+src/App.jsx                         - /login, /register public routes; / protected route;
+                                      * catch-all redirects to /
+src/main.jsx                        - <AuthProvider> wraps the router tree
+
+AUTH FLOW
+---------
+Register -> POST /auth/register -> auto-login -> POST /auth/login -> JWT stored in
+localStorage -> axios interceptor attaches Bearer token to every request ->
+GET /users/me validates token and hydrates user state on page load.
+
+========================================
+STEP 3 — Map Collections
+========================================
+
+BACKEND
+-------
+app/schemas/collection.py   - CollectionCreate, CollectionUpdate, CollectionOut (Pydantic schemas)
+app/routers/collections.py  - POST   /collections          — create (201, owner set to current user)
+                              GET    /collections          — list owned + all public collections
+                              GET    /collections/{id}     — get single; 403 if private & not owner
+                              PATCH  /collections/{id}     — update; 403 if not owner
+                              DELETE /collections/{id}     — delete; 403 if not owner (204)
+main.py                     - collections router included
+
+FRONTEND
+--------
+src/api/collections.js              - getCollections, getCollection, createCollection,
+                                      updateCollection, deleteCollection
+src/components/CollectionModal.jsx  - reusable create/edit modal (title, description, is_public toggle)
+                                      accepts optional collection prop to pre-fill for editing
+src/pages/Collections.jsx           - responsive card grid, public/private badge, empty state,
+                                      "New collection" button opens CollectionModal
+src/pages/CollectionDetail.jsx      - detail view with edit + delete (owner only),
+                                      places section placeholder
+src/App.jsx                         - /collections and /collections/:id routes added,
+                                      Home page has "My Collections" link
+
+OWNERSHIP RULES
+---------------
+- PATCH / DELETE: only owner (403 otherwise)
+- GET single: owner always; non-owner only if is_public=true (403 otherwise)
+- GET list: returns owned collections + all public collections from any user
+
+========================================
+STEP 4 — Places + PostGIS
+========================================
+
+BACKEND
+-------
+app/schemas/place.py        - PlaceCreate (lat/lng floats + range validators), PlaceUpdate, PlaceOut
+app/routers/places.py       - POST   /collections/{id}/places    — create place, stores SRID=4326 POINT
+                              GET    /collections/{id}/places    — list; 403 if private & not owner
+                              PATCH  /collections/{id}/places/{pid} — update; 403 if not owner
+                              DELETE /collections/{id}/places/{pid} — delete; 403 if not owner (204)
+                              GET    /places/nearby?lat=&lng=&radius= — ST_DWithin geography query,
+                                     public collections only, radius in metres (max 50000)
+main.py                     - places router included
+
+GEO NOTES
+---------
+- Stored as: SRID=4326;POINT(lng lat)  ← note: PostGIS is (lng, lat) order
+- Returned as: lat/lng floats via geoalchemy2 to_shape() → point.y / point.x
+- Nearby query uses ST_DWithin with use_spheroid=True for accurate metre distances
+- Migration needed: alembic revision --autogenerate -m "add places table"
+  (adds GiST index on place.location automatically via GeoAlchemy2)
+
+FRONTEND
+--------
+src/api/places.js               - getPlaces, createPlace, updatePlace, deletePlace, getNearbyPlaces
+src/components/PlaceCard.jsx    - name, address, lat/lng coords, delete button (owner only)
+src/components/AddPlaceModal.jsx- form: name, address, lat, lng, description fields
+src/pages/CollectionDetail.jsx  - now loads + displays places, wires AddPlaceModal + PlaceCard
+
+========================================
+STEP 5 — Google Maps View
+========================================
+
+PACKAGE
+-------
+package.json            - added @react-google-maps/api ^2.19.3
+
+FRONTEND
+--------
+src/components/MapView.jsx      - reusable Google Maps component
+                                  props: places, center, height, onMarkerClick
+                                  renders Marker per place + InfoWindow on click
+                                  (name, address, description)
+                                  handles: loading state, API load error, missing key
+                                  uses MAP_LIBRARIES = ["places"] (stable ref, avoids re-renders)
+src/pages/CollectionDetail.jsx  - MapView renders above places list when places.length > 0
+src/pages/Nearby.jsx            - "Find near me" page: browser geolocation →
+                                  GET /places/nearby → results on MapView + list
+                                  radius selector (500m – 10km)
+src/App.jsx                     - /nearby route added, "Nearby Places" button on Home
+
+MAP NOTES
+---------
+- API key: VITE_GOOGLE_MAPS_API_KEY in frontend/.env.local
+- Map center: explicit prop > first place > default (Tel Aviv 32.0853, 34.7818)
+- MapView is safe to render without an API key — shows error message, no crash
+- npm install required after adding @react-google-maps/api
+
+========================================
+STEP 6 — Friendship System
+========================================
+
+BACKEND
+-------
+app/schemas/friendship.py   - FriendshipOut, FriendUserOut, FriendshipWithUserOut
+app/routers/friends.py      - POST   /friends/request/{id}  — send request (409 if exists, 400 if self)
+                              PUT    /friends/{id}/accept   — addressee only; pending → accepted
+                              PUT    /friends/{id}/reject   — addressee only; deletes record
+                              PUT    /friends/{id}/block    — either party; sets blocked status
+                              DELETE /friends/{id}          — unfriend; either party (204)
+                              GET    /friends               — accepted friends with other user info
+                              GET    /friends/pending       — incoming pending requests
+app/routers/users.py        - GET /users/search?q=         — case-insensitive username search,
+                                                             excludes self, limit 20
+main.py                     - friends router included
+
+FRONTEND
+--------
+src/api/friends.js          - getFriends, getPendingRequests, sendFriendRequest,
+                              acceptFriendRequest, rejectFriendRequest, removeFriend, searchUsers
+src/pages/Friends.jsx       - search with debounce (400ms), pending requests inbox
+                              (accept/decline), friends list with remove
+                              all with optimistic UI updates
+src/App.jsx                 - /friends route added, "Friends" button on Home
+
+SOCIAL RULES
+------------
+- Only addressee can accept/reject a request
+- Either party can block or unfriend
+- Blocked status prevents new requests (403)
+- Self-requests return 400
+- Duplicate requests return 409
+
+========================================
+STEP 7 — Feed
+========================================
+
+BACKEND
+-------
+app/routers/feed.py         - GET /feed?limit=&offset=  — paginated places from:
+                                1. current user's own collections
+                                2. accepted friends' public collections
+                              ordered by created_at DESC, limit 1–100 (default 50)
+main.py                     - feed router included
+
+FRONTEND
+--------
+src/api/feed.js             - getFeed(limit, offset)
+src/pages/Feed.jsx          - list/map toggle view, offset-based pagination ("Load more"),
+                              empty state with links to Friends + Collections
+src/App.jsx                 - /feed route added, "Feed" button (indigo) on Home
+
+========================================
+STEP 8 — Place Types + SavedCollections + User Profiles
+========================================
+
+BACKEND DATA LAYER
+------------------
+app/models/place.py         - Added PlaceType enum (food/travel/shop/hangout) as SQLAlchemy Enum;
+                              added nullable `type` column to Place
+app/models/saved_collection.py - NEW: SavedCollection model (saved_collections table)
+                              user_id→users, collection_id→map_collections
+                              UniqueConstraint(user_id, collection_id)
+app/models/user.py          - Added saved_collections relationship → SavedCollection
+app/models/map_collection.py- Added saved_by relationship → SavedCollection
+app/models/__init__.py      - Added SavedCollection import
+
+BACKEND SCHEMAS
+---------------
+app/schemas/place.py        - PlaceType imported from models; type field added to
+                              PlaceCreate, PlaceUpdate, and PlaceOut
+
+BACKEND ROUTERS
+---------------
+app/routers/places.py       - _place_to_out: includes type field
+                              create_place: accepts and stores type
+                              list_places: optional ?type= query filter
+                              get_nearby_places: optional ?type= query filter
+                              NEW: GET /places/bbox?min_lng=&min_lat=&max_lng=&max_lat=&type=
+                                   returns places inside a bounding box (public collections only)
+app/routers/feed.py         - GET /feed: optional ?type= query filter
+app/routers/users.py        - NEW: UserProfile schema (user + public_collections)
+                              NEW: GET /users/{id}/profile — public profile + public collections
+app/routers/saved.py        - NEW ROUTER:
+                              POST   /collections/{id}/save   — save a collection (409 if dup)
+                              DELETE /collections/{id}/save   — unsave
+                              GET    /collections/saved       — list current user's saved collections
+main.py                     - saved router included
+
+MIGRATION NEEDED
+----------------
+After restarting the backend, run:
+  alembic revision --autogenerate -m "place_type_saved_collections"
+  alembic upgrade head
+(Adds: placetype enum, places.type column, saved_collections table)
+
+========================================
+STEP 9 — Expo Mobile App  (/mobile)
+========================================
+
+STACK
+-----
+Expo SDK 51 + Expo Router 3 (file-based routing) + react-native-maps + expo-location +
+expo-secure-store (JWT storage) + Axios
+
+STRUCTURE
+---------
+mobile/
+  app.json                          - Expo config (scheme: whatsapp, bundler: metro)
+  package.json                      - main: expo-router/entry
+  babel.config.js                   - babel-preset-expo
+  .env                              - EXPO_PUBLIC_API_URL=http://localhost:8000
+  .gitignore
+
+  src/api/
+    axios.js                        - Axios instance; AsyncStorage JWT interceptor
+    auth.js                         - login(), register(), getMe()
+    collections.js                  - CRUD + save/unsave/saved list
+    places.js                       - getPlaces, createPlace, deletePlace, getNearby, getBbox
+    feed.js                         - getFeed(limit, offset, type)
+    friends.js                      - full friends API + getUserProfile
+
+  src/context/
+    AuthContext.jsx                 - user state, login/register/logout, token persistence
+
+  app/
+    _layout.jsx                     - Root layout: <AuthProvider> + <Slot>
+    login.jsx                       - Email + password login screen
+    register.jsx                    - Username + email + password registration screen
+    (tabs)/
+      _layout.jsx                   - 5-tab layout; redirects to /login if unauthenticated
+      index.jsx                     - Feed: FlatList + type badge + pull-to-refresh + infinite scroll
+      explore.jsx                   - Map with current location + nearby place markers
+      collections.jsx               - Collections list + FAB + create modal
+      friends.jsx                   - Friends list, pending requests, search + debounce
+      profile.jsx                   - User profile card + logout
+    collection/
+      [id].jsx                      - Collection detail: list/map toggle, add/delete places,
+                                      type picker chips
+
+SETUP
+-----
+  cd mobile
+  npm install
+  npx expo start          # scan QR with Expo Go
+  # For iOS simulator:   npx expo run:ios
+  # For Android:         npx expo run:android
+
+========================================
+STEP 10 — Rich Filtering, Map-Tap-to-Add, UI Overhaul
+========================================
+
+BACKEND ENRICHMENTS
+-------------------
+app/schemas/place.py        - PlaceOut: added collection_title, owner_id, owner_username (optional fields)
+app/schemas/collection.py   - CollectionOut: added place_count, owner_username (optional fields)
+app/routers/places.py       - _place_to_out(): now accepts optional MapCollection, populates new fields
+                              _get_collection_or_404(): uses joinedload(owner) to avoid N+1
+                              All endpoints enriched: collection-scoped CRUD, nearby, bbox
+                              NEW: GET /places — global search with ?type, ?q, ?collection_id,
+                                   ?owner_id, ?sort (recent|name), ?limit, ?offset
+                              GET /places/nearby: added ?q (name search)
+app/routers/collections.py  - _collection_to_out(): populates place_count via subquery + owner_username
+                              GET /collections: added ?search, ?owner_id, ?mine_only, ?sort params
+                              All endpoints now use joinedload(owner) for efficient queries
+app/routers/feed.py         - Uses joinedload(Place.collection → MapCollection.owner)
+                              Feed places now include collection_title + owner_username
+
+FRONTEND (WEB) OVERHAUL
+------------------------
+src/App.jsx                 - REWRITE: persistent left sidebar nav (slate-900), responsive collapse on mobile
+                              Layout wraps all protected pages; sidebar has nav links + user footer + logout
+                              Home route now redirects to /feed
+src/api/feed.js             - getFeed() now accepts type parameter → ?type= query
+src/components/MapView.jsx  - Added onMapClick prop: called with (lat, lng) on map background click
+                              Added markerColor prop: function(place) → hex color
+                              Custom SVG pin markers colored by type (food/travel/shop/hangout/default)
+                              InfoWindow now shows collection_title
+src/components/AddPlaceModal.jsx - Added initialLat / initialLng props (pre-fills lat/lng from map click)
+                                   Added type picker chips (color-coded: food/travel/shop/hangout)
+                                   Improved layout and indigo accent colors
+src/pages/Feed.jsx          - Type filter pills: All | Food | Travel | Shop | Hangout (re-fetches on change)
+                              Cards: color-coded left border + badge by type, show collection + owner meta
+                              Skeleton loading animation; map/list toggle stays at top right
+src/pages/Collections.jsx   - Tab filters: All | Mine | Public | Shared (client-side filter)
+                              Search bar (client-side title/description filter)
+                              Cards: colored top accent gradient, place count, owner name for shared
+                              FAB (+ button) at bottom-right instead of header button
+src/pages/CollectionDetail.jsx - Type filter chips above list (All | Food | Travel | Shop | Hangout)
+                                  Map click-to-add: clicking map → opens AddPlaceModal with coords pre-filled
+                                  "Click on map to add a place" hint shown for owners in map view
+                                  Color-coded markers by type via markerColor prop
+                                  Improved layout with view toggle + add button in same row
+
+MOBILE OVERHAUL
+---------------
+app/(tabs)/explore.jsx      - REWRITE: type filter bar (scrollable chips) at top of map
+                              Tap map → bottom sheet modal to add place at tapped location
+                              Collection picker (horizontal chip scroll), type picker, name + address inputs
+                              New place added to markers immediately; pending pin shown in green
+                              Nearby markers color-coded by type; callout shows collection_title
+app/(tabs)/index.jsx        - REWRITE: type filter chips bar at top (re-fetches on change)
+                              Cards: left border accent + colored badges by type
+                              Shows collection_title + owner_username below address
+                              Removed raw lat/lng coords from cards
+app/collection/[id].jsx     - REWRITE: type filter chips below header (client-side filter)
+                              Map tap → opens add-place modal with lat/lng pre-filled
+                              Map hint "Tap the map to add a place"
+                              Color-coded markers by type; left-border cards with type badges
+                              Header row: view toggle + "+ Add" button side by side
+
+DEV WORKFLOW (UPDATED)
+----------------------
+1.  Start Postgres.app
+2.  cd backend && source venv/bin/activate && uvicorn main:app --reload --host 0.0.0.0
+3.  cd frontend && npm run dev
+4.  cd mobile && npx expo start --lan --clear
+    (use --tunnel only if ngrok is available; has outages)
+
+========================================
+STEP 11 — Photos + Place Extra Data
+========================================
+
+BACKEND
+-------
+app/models/place.py         - PlaceType enum: added "exercise" type
+                              Added extra_data (JSONB, nullable) column to Place
+app/schemas/place.py        - FoodExtra, TravelExtra, ExerciseExtra, ShopExtra, HangoutExtra
+                              Pydantic models with type-specific fields (price range, kosher,
+                              dishes tags, difficulty, workout type, has_parking etc.)
+                              PlaceCreate/Update accept extra_data; PlaceOut returns it
+app/routers/uploads.py      - NEW ROUTER: POST /uploads/photo (multipart, max 5 MB,
+                              JPEG/PNG/WebP/GIF) → returns { url: "/uploads/<uuid>.ext" }
+main.py                     - uploads router included; static files mounted at /uploads/
+alembic migration           - 3eafd4117ad2: adds exercise to placetype enum + extra_data JSONB column
+
+FRONTEND (WEB)
+--------------
+src/components/AddPlaceModal.jsx - type pill selector triggers type-specific extra fields:
+                                   food → price range, kosher toggle, dishes tags
+                                   exercise → difficulty, workout type, has_parking toggle
+                                   shop/hangout → relevant fields
+                                   photo upload (up to 5): POST /uploads/photo → stores URL in extra_data.photos[]
+src/components/PlaceCard.jsx     - ExtraDetails panel renders type-specific fields
+                                   Photo strip: <img src="${API_URL}${url}"> for each photo
+
+MOBILE
+------
+mobile/app/collection/[id].jsx  - Same type pills + ExtraFields component with subcomponents:
+                                   PillRow, TagRow, ToggleRow for each extra field type
+                                   expo-image-picker for photo selection + upload
+mobile/package.json             - expo-image-picker ~15.0.7 added
+
+========================================
+STEP 12 — AI Features
+========================================
+
+BACKEND
+-------
+app/routers/ai.py           - NEW ROUTER: prefix /ai
+                              Uses google-genai SDK (gemini-2.0-flash model)
+                              POST /ai/location-info       — description, best_time, what_to_do, tips
+                              POST /ai/collection-description — auto-generate 2-sentence description
+                              POST /ai/natural-search      — NL query → type filter + keyword search
+                              POST /ai/analyze-photo       — vision: detect place type + name suggestion
+                              POST /ai/recommendations     — 5 place suggestions based on saved places
+                              POST /ai/travel-guide        — 3-4 paragraph blog-style guide for collection
+app/config.py               - gemini_api_key: str = "" setting added
+backend/.env                - GEMINI_API_KEY set (currently pending Google Trust Check, quota limit: 0)
+backend/requirements.txt    - google-genai (new SDK, replaces deprecated google-generativeai)
+main.py                     - ai router included
+
+MOBILE
+------
+mobile/src/api/ai.js        - getLocationInfo, getCollectionDescription, naturalSearch,
+                              analyzePhoto, getRecommendations, getTravelGuide
+mobile/app/(tabs)/index.jsx - ✨ AI toggle button in search bar opens NL search row
+                              "For you ✨" filter chip triggers getRecommendations()
+                              Tapping searched location pin → AI location info card in bottom sheet
+
+========================================
+STEP 13 — "Where Am I" Social Status Feature
+========================================
+
+BACKEND
+-------
+app/models/user_status.py   - NEW: UserStatus model (user_statuses table)
+                              StatusMode enum: live / plan
+                              ActivityType enum: coffee/drinks/study/hike/food/event/hangout/work/other
+                              RSVPResponse enum: going / maybe / no
+                              UserStatus: id, user_id→User, mode, activity_type, message,
+                                location (PostGIS POINT 4326), location_name, expires_at,
+                                is_active (bool), visibility (friends/public), created_at
+                              StatusRSVP: id, status_id→UserStatus, user_id→User,
+                                response (RSVPResponse), UniqueConstraint(status_id, user_id)
+app/models/__init__.py      - Added UserStatus, StatusRSVP imports
+app/models/user.py          - Added statuses relationship → UserStatus
+app/routers/status.py       - NEW ROUTER: prefix /status
+                              POST   /status           — create live status or plan
+                              GET    /status/feed      — active statuses from friends + own + public
+                              GET    /status/my        — current user's active status (or null)
+                              PATCH  /status/{id}      — deactivate or update message
+                              DELETE /status/{id}      — delete own status
+                              POST   /status/{id}/rsvp — RSVP to a plan (going/maybe/no)
+                              GET    /status/{id}/rsvp — list RSVPs for a plan
+                              expires_at parser: "1h"→now+1h, "3h"→now+3h, "tonight"→23:59,
+                                else ISO datetime string
+                              Auto-expire: bulk UPDATE before feed/my reads
+main.py                     - status router included
+alembic migration           - afbed2f8fdf2 (hand-written, stamped with alembic stamp)
+
+MOBILE
+------
+mobile/src/api/status.js        - createStatus, getStatusFeed, getMyStatus, updateStatus,
+                                  deleteStatus, rsvpStatus, getStatusRsvps
+mobile/app/(tabs)/index.jsx     - PulsingMarker: Animated.loop scale 1.0→1.6, 1200ms,
+                                  coral (#F4743B) for live, purple (#7C5CBF) for plan
+                                  PostStatusModal: mode toggle, 9 activity emoji pills,
+                                  message input, location name, expiry pills (live) or
+                                  DateTimePicker (plan), visibility toggle, End status button
+                                  30s polling: setInterval(loadStatuses, 30000)
+                                  Broadcast FAB: white circle + colored border ring + ✈️/📍 icon
+                                  Status detail card: avatar, italic message + accent border,
+                                  RSVP pill buttons, RSVP counts
+mobile/app/(tabs)/profile.jsx   - Active Now (coral) / Upcoming Plan (purple) gradient banner
+                                  with "End" button calls updateStatus({is_active: false})
+mobile/app/(tabs)/friends.jsx   - getStatusFeed loaded alongside friends; active status emoji
+                                  + location shown under friend name instead of email
+mobile/package.json             - @react-native-community/datetimepicker installed (--legacy-peer-deps)
+
+WEB FRONTEND
+------------
+frontend/src/api/status.js          - same 6 API functions
+frontend/src/components/PostStatusModal.jsx - bottom-sheet modal, same fields as mobile,
+                                              datetime-local input for plan date
+frontend/src/pages/Explore.jsx      - CSS @keyframes pulse-live/pulse-plan injected via
+                                      document.createElement("style"); Leaflet L.divIcon
+                                      custom markers; 30s polling; Share Status button;
+                                      selectedStatus card with RSVP buttons
+frontend/src/pages/Profile.jsx      - Active Now / Upcoming Plan banner with End button
+
+DESIGN SYSTEM (Polarsteps-inspired, applied to mobile Explore screen)
+----------------------------------------------------------------------
+Background:    #F7F5F0  (warm off-white)
+Cards/sheets:  #FFFFFF
+Primary teal:  #00A878  (add place, save, NL search)
+Live status:   #F4743B  (coral/orange)
+Plan status:   #7C5CBF  (purple)
+Text primary:  #1C1C1E
+Text secondary:#6B7280
+Text muted:    #9CA3AF
+Borders:       #EDE9E3  (warm gray)
+Shadows:       shadowColor "#8B7355", shadowOpacity 0.07–0.12
+Pill buttons:  borderRadius 50
+Section labels:fontSize 11, fontWeight 700, color #A09A93, letterSpacing 1.2, uppercase

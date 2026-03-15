@@ -1,0 +1,7 @@
+import api from "./axios";
+
+export const getCollections = () => api.get("/collections").then((r) => r.data);
+export const getCollection = (id) => api.get(`/collections/${id}`).then((r) => r.data);
+export const createCollection = (data) => api.post("/collections", data).then((r) => r.data);
+export const updateCollection = (id, data) => api.patch(`/collections/${id}`, data).then((r) => r.data);
+export const deleteCollection = (id) => api.delete(`/collections/${id}`);
