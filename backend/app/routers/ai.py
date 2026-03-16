@@ -370,12 +370,35 @@ async def generate_travel_guide(
         for p in col.places[:30]
     ) or "- No places added yet"
 
-    prompt = f"""Write a short, inspiring travel guide (3-4 paragraphs) for a collection called "{col.title}".
-Places:
+    prompt = f"""You are a passionate local expert and travel writer creating a personal guide for a collection called "{col.title}".
+
+Places in this collection:
 {place_lines}
 
-Write it like a personal travel blog — warm, practical, and vivid. Mention the place names naturally.
-Return ONLY the guide text, no JSON, no title."""
+Write a vivid, personal travel guide with exactly this structure:
+
+1. Opening hook (1 sentence) — a punchy, exciting opener that captures the spirit of this collection
+
+2. The Vibe (1 paragraph) — describe the overall feeling and theme of this collection. What kind of person loves these places? What mood do they create together?
+
+3. The Highlights (1 paragraph per place, max 3 places) — for each place write 2-3 sentences. Include:
+   - What makes it special or unique
+   - Best time to go or pro tip
+   - One sensory detail (smell, sound, feeling)
+
+4. Local Tips (3 bullet points) — practical insider tips specific to these places or this type of experience
+
+5. Closing line — one memorable sentence that makes the reader want to go right now
+
+Tone rules:
+- Write like a close friend who knows these places deeply
+- Warm, enthusiastic, and specific — never generic
+- If place names are in Hebrew, keep them in Hebrew naturally
+- Use "you" to speak directly to the reader
+- No hashtags, no emojis, no markdown headers
+- Make it feel like a page from a personal travel journal
+
+Return ONLY the guide text. No JSON, no title, no extra formatting."""
 
     try:
         return TravelGuideResponse(

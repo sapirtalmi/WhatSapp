@@ -436,23 +436,33 @@ STEP 12 — AI Features
 BACKEND
 -------
 app/routers/ai.py           - NEW ROUTER: prefix /ai
-                              Uses google-genai SDK (gemini-2.0-flash model)
+                              Uses google-genai SDK, model: gemini-3-flash-preview
+                              Singleton _genai_client (module-level) — avoids "client closed" error
                               POST /ai/location-info       — description, best_time, what_to_do, tips
                               POST /ai/collection-description — auto-generate 2-sentence description
                               POST /ai/natural-search      — NL query → type filter + keyword search
+                                   accepts optional bbox {min_lat, max_lat, min_lng, max_lng}
+                                   for viewport-based PostGIS ST_X/ST_Y filtering
                               POST /ai/analyze-photo       — vision: detect place type + name suggestion
                               POST /ai/recommendations     — 5 place suggestions based on saved places
-                              POST /ai/travel-guide        — 3-4 paragraph blog-style guide for collection
+                              POST /ai/travel-guide        — structured personal guide:
+                                   opening hook → vibe → highlights per place → local tips → closing line
+                                   warm personal travel journal tone; Hebrew place names kept natural
+                              All joinedload queries use .unique() before .scalar_one_or_none()
 app/config.py               - gemini_api_key: str = "" setting added
-backend/.env                - GEMINI_API_KEY set (currently pending Google Trust Check, quota limit: 0)
+backend/.env                - GEMINI_API_KEY required (missing = 503 on all AI endpoints)
+                              ACCESS_TOKEN_EXPIRE_MINUTES=43200 (30 days)
+                              DATABASE_URL=postgresql://Sapir@localhost:5432/whatsapp (Postgres.app)
 backend/requirements.txt    - google-genai (new SDK, replaces deprecated google-generativeai)
 main.py                     - ai router included
 
 MOBILE
 ------
-mobile/src/api/ai.js        - getLocationInfo, getCollectionDescription, naturalSearch,
-                              analyzePhoto, getRecommendations, getTravelGuide
+mobile/src/api/ai.js        - getLocationInfo, getCollectionDescription,
+                              naturalSearch(query, lat, lon, bbox), analyzePhoto,
+                              getRecommendations, getTravelGuide
 mobile/app/(tabs)/index.jsx - ✨ AI toggle button in search bar opens NL search row
+                              "Visible area only" toggle pill passes current map viewport bbox
                               "For you ✨" filter chip triggers getRecommendations()
                               Tapping searched location pin → AI location info card in bottom sheet
 
@@ -494,17 +504,32 @@ mobile/src/api/status.js        - createStatus, getStatusFeed, getMyStatus, upda
 mobile/app/(tabs)/index.jsx     - PulsingMarker: Animated.loop scale 1.0→1.6, 1200ms,
                                   coral (#F4743B) for live, purple (#7C5CBF) for plan
                                   PostStatusModal: mode toggle, 9 activity emoji pills,
-                                  message input, location name, expiry pills (live) or
-                                  DateTimePicker (plan), visibility toggle, End status button
+                                  message input, location name,
+                                  expiry pills: 1h / 3h / Tonight / Custom (DateTimePicker) for live,
+                                  DateTimePicker for plan, visibility toggle, End status button
+                                  Swipeable bottom sheet (PanResponder): peek 130px ↔ expanded 55%
+                                  NL search bar: "Visible area only" toggle uses map viewport bbox
+                                  "Who's Out" FAB (blue people icon + orange badge count) →
+                                    modal listing all active friend statuses with map navigation
+                                  onRegionChangeComplete tracks current map region ref
                                   30s polling: setInterval(loadStatuses, 30000)
                                   Broadcast FAB: white circle + colored border ring + ✈️/📍 icon
                                   Status detail card: avatar, italic message + accent border,
                                   RSVP pill buttons, RSVP counts
-mobile/app/(tabs)/profile.jsx   - Active Now (coral) / Upcoming Plan (purple) gradient banner
-                                  with "End" button calls updateStatus({is_active: false})
-mobile/app/(tabs)/friends.jsx   - getStatusFeed loaded alongside friends; active status emoji
-                                  + location shown under friend name instead of email
+mobile/app/(tabs)/profile.jsx   - Delicate status banner (light tinted bg + 3px left accent border
+                                  + Ionicons activity icon + ghost End button); AFTER stats row
+                                  Ionicons + ACTIVITY_ICONS map (not emojis)
+mobile/app/(tabs)/friends.jsx   - StatusPill component: Live/Plan colored pill + message + time left
+                                  "Out right now" section at top when friends have active statuses
+                                  Full friends list also shows StatusPill per active friend
+mobile/app/collection/[id].jsx  - Add place: NO lat/lng inputs
+                                  Location set via Nominatim address search (debounced 500ms) OR
+                                  tap-on-map pin with auto reverse-geocode (expo-location)
+                                  pickingPinMode state: closes modal → map view → user taps → reopens
+                                  All TextInputs: color "#111827" + placeholderTextColor "#9CA3AF"
+                                  Explicit fieldLabel above each input group
 mobile/package.json             - @react-native-community/datetimepicker installed (--legacy-peer-deps)
+                                  expo-location used for reverse geocoding in collection detail
 
 WEB FRONTEND
 ------------
