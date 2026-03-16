@@ -1,5 +1,5 @@
 import * as ImagePicker from "expo-image-picker";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -22,6 +22,7 @@ import { getPlaces, createPlace, deletePlace } from "../../src/api/places";
 import { getCollections } from "../../src/api/collections";
 import { getTravelGuide, analyzePhoto } from "../../src/api/ai";
 import api from "../../src/api/axios";
+import * as Location from "expo-location";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -203,12 +204,15 @@ export default function CollectionDetail() {
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
-  const [lat, setLat] = useState("");
-  const [lng, setLng] = useState("");
   const [type, setType] = useState(null);
   const [extraData, setExtraData] = useState({});
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [locationQuery, setLocationQuery] = useState("");
+  const [locationResults, setLocationResults] = useState([]);
+  const [locationSearching, setLocationSearching] = useState(false);
+  const [pickingPinMode, setPickingPinMode] = useState(false);
+  const locationSearchTimeout = useRef(null);
 
   // Travel guide
   const [guideVisible, setGuideVisible] = useState(false);
@@ -256,13 +260,8 @@ export default function CollectionDetail() {
 
   function openAddModal(pin = null) {
     setName(""); setAddress(""); setDescription(""); setType(null); setExtraData({}); setAiSuggestion(null);
-    if (pin) {
-      setLat(String(pin.latitude.toFixed(6)));
-      setLng(String(pin.longitude.toFixed(6)));
-      setPendingPin(pin);
-    } else {
-      setLat(""); setLng(""); setPendingPin(null);
-    }
+    setLocationQuery(""); setLocationResults([]);
+    setPendingPin(pin ?? null);
     setModalVisible(true);
   }
 
@@ -322,7 +321,55 @@ export default function CollectionDetail() {
 
   function handleMapPress(e) {
     const { latitude, longitude } = e.nativeEvent.coordinate;
+    if (pickingPinMode) {
+      setPendingPin({ latitude, longitude });
+      setPickingPinMode(false);
+      setModalVisible(true);
+      Location.reverseGeocodeAsync({ latitude, longitude })
+        .then((results) => {
+          if (results?.[0]) {
+            const r = results[0];
+            setAddress([r.street, r.city].filter(Boolean).join(", "));
+          }
+        })
+        .catch(() => {});
+      return;
+    }
     openAddModal({ latitude, longitude });
+    Location.reverseGeocodeAsync({ latitude, longitude })
+      .then((results) => {
+        if (results?.[0]) {
+          const r = results[0];
+          setAddress([r.street, r.city].filter(Boolean).join(", "));
+        }
+      })
+      .catch(() => {});
+  }
+
+  function handleLocationQueryChange(text) {
+    setLocationQuery(text);
+    if (locationSearchTimeout.current) clearTimeout(locationSearchTimeout.current);
+    if (!text.trim()) { setLocationResults([]); return; }
+    locationSearchTimeout.current = setTimeout(async () => {
+      setLocationSearching(true);
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(text)}&format=json&limit=5`
+        );
+        const data = await res.json();
+        setLocationResults(data);
+      } catch {}
+      setLocationSearching(false);
+    }, 500);
+  }
+
+  function selectLocation(result) {
+    const latitude = parseFloat(result.lat);
+    const longitude = parseFloat(result.lon);
+    setPendingPin({ latitude, longitude });
+    setAddress(result.display_name.split(",").slice(0, 2).join(",").trim());
+    setLocationQuery("");
+    setLocationResults([]);
   }
 
   function buildExtraData() {
@@ -338,17 +385,19 @@ export default function CollectionDetail() {
   }
 
   async function handleAdd() {
-    const latNum = parseFloat(lat);
-    const lngNum = parseFloat(lng);
-    if (!name || isNaN(latNum) || isNaN(lngNum)) {
-      Alert.alert("Required", "Name, latitude and longitude are required.");
+    if (!name.trim() || !pendingPin) {
+      Alert.alert("Required", "Name and location are required.");
       return;
     }
     setSaving(true);
     try {
       const p = await createPlace(collectionId, {
-        name, address: address || null, description: description || null,
-        lat: latNum, lng: lngNum, type: type || null,
+        name: name.trim(),
+        address: address || null,
+        description: description || null,
+        lat: pendingPin.latitude,
+        lng: pendingPin.longitude,
+        type: type || null,
         extra_data: buildExtraData(),
       });
       setPlaces((prev) => [p, ...prev]);
@@ -606,7 +655,9 @@ export default function CollectionDetail() {
       {/* Map view */}
       {view === "map" && (
         <View style={styles.mapContainer}>
-          <Text style={styles.mapHint}>Tap the map to add a place</Text>
+          <Text style={styles.mapHint}>
+            {pickingPinMode ? "Tap the map to drop a pin" : "Tap the map to add a place"}
+          </Text>
           <MapView style={StyleSheet.absoluteFill} region={mapRegion} onPress={handleMapPress}>
             {pendingPin && <Marker coordinate={pendingPin} pinColor="#10b981" />}
             {filteredPlaces.map((place) => (
@@ -620,6 +671,17 @@ export default function CollectionDetail() {
               </Marker>
             ))}
           </MapView>
+          {pickingPinMode && (
+            <View style={styles.pinModeOverlay}>
+              <Text style={styles.pinModeText}>Tap anywhere to drop a pin</Text>
+              <TouchableOpacity
+                onPress={() => { setPickingPinMode(false); setModalVisible(true); }}
+                style={styles.pinModeCancelBtn}
+              >
+                <Text style={styles.pinModeCancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       )}
 
@@ -706,24 +768,68 @@ export default function CollectionDetail() {
               </TouchableOpacity>
             </View>
 
-            {pendingPin && (
-              <Text style={styles.coordsHint}>
-                📍 {pendingPin.latitude.toFixed(5)}, {pendingPin.longitude.toFixed(5)}
-              </Text>
-            )}
-
             <Text style={styles.fieldLabel}>Name *</Text>
             <TextInput style={styles.input} placeholder="e.g. Blue Cafe" placeholderTextColor="#9CA3AF" value={name} onChangeText={setName} />
-            <Text style={styles.fieldLabel}>Address</Text>
-            <TextInput style={styles.input} placeholder="e.g. 12 Dizengoff St, Tel Aviv" placeholderTextColor="#9CA3AF" value={address} onChangeText={setAddress} />
+
+            <Text style={styles.fieldLabel}>Location *</Text>
+            {pendingPin ? (
+              <View style={styles.locationSelected}>
+                <Text style={{ fontSize: 16, marginRight: 8 }}>📍</Text>
+                <Text style={styles.locationSelectedText} numberOfLines={1}>
+                  {address || `${pendingPin.latitude.toFixed(4)}, ${pendingPin.longitude.toFixed(4)}`}
+                </Text>
+                <TouchableOpacity onPress={() => { setPendingPin(null); setAddress(""); }}>
+                  <Text style={styles.locationChange}>Change</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={{ marginBottom: 10 }}>
+                <View style={styles.locationSearchRow}>
+                  <TextInput
+                    style={styles.locationSearchInput}
+                    placeholder="Search address or place name…"
+                    placeholderTextColor="#9CA3AF"
+                    value={locationQuery}
+                    onChangeText={handleLocationQueryChange}
+                    returnKeyType="search"
+                  />
+                  {locationSearching && (
+                    <ActivityIndicator size="small" color="#4f46e5" style={{ position: "absolute", right: 12, top: 13 }} />
+                  )}
+                </View>
+                {locationResults.length > 0 && (
+                  <View style={styles.locationDropdown}>
+                    {locationResults.map((r, i) => (
+                      <TouchableOpacity
+                        key={r.place_id}
+                        onPress={() => selectLocation(r)}
+                        style={[styles.locationResultRow, i < locationResults.length - 1 && { borderBottomWidth: 1, borderBottomColor: "#f1f5f9" }]}
+                      >
+                        <Text style={{ fontSize: 13, color: "#6366f1", marginRight: 8 }}>📍</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 13, color: "#0f172a", fontWeight: "500" }} numberOfLines={1}>
+                            {r.display_name.split(",")[0]}
+                          </Text>
+                          <Text style={{ fontSize: 11, color: "#94a3b8" }} numberOfLines={1}>
+                            {r.display_name}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+                <TouchableOpacity
+                  onPress={() => { setModalVisible(false); setPickingPinMode(true); setView("map"); }}
+                  style={styles.pinOnMapBtn}
+                >
+                  <Text style={{ fontSize: 16 }}>📌</Text>
+                  <Text style={styles.pinOnMapText}>Tap on map to pin location</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             <Text style={styles.fieldLabel}>Description</Text>
             <TextInput style={[styles.input, styles.textArea]} placeholder="Add notes…" placeholderTextColor="#9CA3AF" value={description} onChangeText={setDescription} multiline />
-
-            <Text style={styles.fieldLabel}>Coordinates *</Text>
-            <View style={styles.latlngRow}>
-              <TextInput style={[styles.input, styles.halfInput]} placeholder="Latitude" placeholderTextColor="#9CA3AF" value={lat} onChangeText={setLat} keyboardType="decimal-pad" />
-              <TextInput style={[styles.input, styles.halfInput]} placeholder="Longitude" placeholderTextColor="#9CA3AF" value={lng} onChangeText={setLng} keyboardType="decimal-pad" />
-            </View>
 
             <Text style={styles.sectionLabel}>Type</Text>
             <View style={styles.typeRow}>
@@ -826,11 +932,45 @@ const styles = StyleSheet.create({
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
   modalTitle: { fontSize: 20, fontWeight: "bold", color: "#111827" },
   modalClose: { fontSize: 18, color: "#9ca3af", padding: 4 },
-  coordsHint: { fontSize: 12, color: "#6b7280", marginBottom: 14, backgroundColor: "#f3f4f6", padding: 8, borderRadius: 8 },
   input: { borderWidth: 1, borderColor: "#d1d5db", borderRadius: 10, padding: 12, marginBottom: 10, fontSize: 14, backgroundColor: "#fafafa", color: "#111827" },
   textArea: { height: 70, textAlignVertical: "top" },
-  latlngRow: { flexDirection: "row", gap: 8 },
-  halfInput: { flex: 1 },
+  locationSelected: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: "#f0fdf4", borderRadius: 10, padding: 12,
+    marginBottom: 10, borderWidth: 1, borderColor: "#bbf7d0",
+  },
+  locationSelectedText: { flex: 1, fontSize: 14, color: "#0f172a", fontWeight: "500" },
+  locationChange: { fontSize: 12, color: "#4f46e5", fontWeight: "600", marginLeft: 8 },
+  locationSearchRow: { position: "relative", marginBottom: 8 },
+  locationSearchInput: {
+    borderWidth: 1, borderColor: "#d1d5db", borderRadius: 10,
+    padding: 12, paddingRight: 40, fontSize: 14,
+    backgroundColor: "#fafafa", color: "#111827",
+  },
+  locationDropdown: {
+    backgroundColor: "#fff", borderRadius: 10, borderWidth: 1,
+    borderColor: "#e2e8f0", marginBottom: 8, overflow: "hidden",
+  },
+  locationResultRow: { flexDirection: "row", alignItems: "center", padding: 12 },
+  pinOnMapBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    borderWidth: 1.5, borderColor: "#4f46e5", borderStyle: "dashed",
+    borderRadius: 10, paddingVertical: 12, gap: 8,
+  },
+  pinOnMapText: { fontSize: 14, color: "#4f46e5", fontWeight: "500" },
+  pinModeOverlay: {
+    position: "absolute", bottom: 20, left: 16, right: 16,
+    backgroundColor: "#fff", borderRadius: 16, padding: 16,
+    shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 12,
+    elevation: 8, zIndex: 10, flexDirection: "row",
+    alignItems: "center", justifyContent: "space-between",
+  },
+  pinModeText: { fontSize: 14, color: "#374151", fontWeight: "500", flex: 1 },
+  pinModeCancelBtn: {
+    backgroundColor: "#fee2e2", borderRadius: 99,
+    paddingHorizontal: 14, paddingVertical: 6, marginLeft: 12,
+  },
+  pinModeCancelText: { color: "#ef4444", fontWeight: "600", fontSize: 13 },
   sectionLabel: { fontSize: 13, fontWeight: "600", color: "#374151", marginBottom: 8 },
   fieldLabel: { fontSize: 11, fontWeight: "700", color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 5, marginTop: 4 },
   typeRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 20 },

@@ -4,12 +4,19 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from sqlalchemy import text
+
 from app.database import engine
 from app.models import Base
 from app.routers import ai, auth, collections, feed, friends, places, saved, status, uploads, users
 
 UPLOAD_DIR = Path(__file__).parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
+
+# Enable PostGIS extension (required for geometry columns), then create tables
+with engine.connect() as conn:
+    conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis"))
+    conn.commit()
 
 Base.metadata.create_all(bind=engine)
 
