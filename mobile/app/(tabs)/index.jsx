@@ -18,6 +18,7 @@ import {
   PanResponder,
   useWindowDimensions,
 } from "react-native";
+
 import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
@@ -29,7 +30,9 @@ import { getFriends } from "../../src/api/friends";
 import { getGlobalPlaces, createPlace } from "../../src/api/places";
 import { getLocationInfo, getRecommendations, naturalSearch } from "../../src/api/ai";
 import { createStatus, getStatusFeed, getMyStatus, updateStatus, rsvpStatus } from "../../src/api/status";
+import { getBroadcastsMap, requestToJoin, deleteBroadcast } from "../../src/api/broadcasts";
 import api from "../../src/api/axios";
+import { router } from "expo-router";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -123,6 +126,60 @@ function timeLeft(expiresAt) {
   const h = Math.floor(diff / 3600000);
   const m = Math.floor((diff % 3600000) / 60000);
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+// ── Broadcast helpers ──────────────────────────────────────────────────────────
+const BROADCAST_EMOJIS = {
+  trip: "🗺️", food: "🍽️", drinks: "🍻", hangout: "🛋️", sport: "⚽", other: "📍",
+};
+
+function GlowingBroadcastMarker({ broadcast }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(0.8)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(scale, { toValue: 1.8, duration: 1000, useNativeDriver: true }),
+          Animated.timing(scale, { toValue: 1.0, duration: 1000, useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(opacity, { toValue: 0, duration: 1000, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0.7, duration: 1000, useNativeDriver: true }),
+        ]),
+      ])
+    ).start();
+  }, []);
+  const initial = (broadcast.creator_username?.[0] ?? "?").toUpperCase();
+  return (
+    <View style={{ width: 52, height: 52, alignItems: "center", justifyContent: "center" }}>
+      {/* Glow ring */}
+      <Animated.View style={{
+        position: "absolute", width: 44, height: 44, borderRadius: 22,
+        backgroundColor: "#F5A623", opacity, transform: [{ scale }],
+      }} />
+      {/* Inner circle */}
+      <View style={{
+        width: 44, height: 44, borderRadius: 22,
+        backgroundColor: "#F5A623", borderWidth: 3, borderColor: "#fff",
+        alignItems: "center", justifyContent: "center",
+        shadowColor: "#F5A623", shadowOpacity: 0.5, shadowRadius: 8, elevation: 6,
+      }}>
+        <Text style={{ fontSize: 20 }}>
+          {BROADCAST_EMOJIS[broadcast.type] ?? "📍"}
+        </Text>
+      </View>
+      {/* Creator avatar */}
+      <View style={{
+        position: "absolute", top: 0, right: 0,
+        width: 18, height: 18, borderRadius: 9,
+        backgroundColor: "#00A878", borderWidth: 1.5, borderColor: "#fff",
+        alignItems: "center", justifyContent: "center",
+      }}>
+        <Text style={{ color: "#fff", fontSize: 8, fontWeight: "800" }}>{initial}</Text>
+      </View>
+    </View>
+  );
 }
 
 // ── PulsingMarker ──────────────────────────────────────────────────────────────
@@ -573,6 +630,11 @@ export default function ExploreScreen() {
   const [showFriendsPanel, setShowFriendsPanel] = useState(false);
   const [statusRefreshing, setStatusRefreshing] = useState(false);
 
+  // Broadcasts
+  const [broadcasts, setBroadcasts] = useState([]);
+  const [selectedBroadcast, setSelectedBroadcast] = useState(null);
+  const [broadcastRequestLoading, setBroadcastRequestLoading] = useState(false);
+
   // Add place
   const [pendingPin, setPendingPin] = useState(null);
   const [collections, setCollections] = useState([]);
@@ -593,6 +655,13 @@ export default function ExploreScreen() {
         const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
         setLocationReady(true);
         setUserLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+        currentRegion.current = {
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+          latitudeDelta: 0.15,
+          longitudeDelta: 0.15,
+        };
+        loadBroadcasts();
         mapRef.current?.animateToRegion({
           latitude: loc.coords.latitude,
           longitude: loc.coords.longitude,
@@ -660,6 +729,24 @@ export default function ExploreScreen() {
     const interval = setInterval(loadStatuses, 30000);
     return () => clearInterval(interval);
   }, [loadStatuses]);
+
+  // ── Broadcasts feed ───────────────────────────────────────────────────
+  const loadBroadcasts = useCallback(async () => {
+    const region = currentRegion.current;
+    if (!region) return;
+    try {
+      const data = await getBroadcastsMap(region.latitude, region.longitude);
+      setBroadcasts(data || []);
+    } catch {
+      // silent fail — broadcast backend may not be deployed yet
+    }
+  }, []);
+
+  useEffect(() => {
+    // Initial load happens once location resolves; poll every 30s
+    const interval = setInterval(loadBroadcasts, 30000);
+    return () => clearInterval(interval);
+  }, [loadBroadcasts]);
 
   const handleRsvp = async (statusId, response) => {
     try {
@@ -878,7 +965,16 @@ export default function ExploreScreen() {
         showsCompass={false}
         mapType={mapType}
         onPress={handleMapPress}
-        onRegionChangeComplete={(r) => { currentRegion.current = r; }}
+        onRegionChangeComplete={(r) => {
+          const prev = currentRegion.current;
+          currentRegion.current = r;
+          // Reload broadcasts only when map moved significantly (>20% of delta)
+          if (!prev ||
+            Math.abs(r.latitude - prev.latitude) > prev.latitudeDelta * 0.2 ||
+            Math.abs(r.longitude - prev.longitude) > prev.longitudeDelta * 0.2) {
+            loadBroadcasts();
+          }
+        }}
       >
         {searchPin && (
           <Marker
@@ -908,6 +1004,17 @@ export default function ExploreScreen() {
             tracksViewChanges={false}
           >
             <DotMarker color={TYPE_COLORS[place.type] ?? "#2dd4bf"} />
+          </Marker>
+        ))}
+        {broadcasts.map((b) => (
+          <Marker
+            key={`broadcast-${b.id}`}
+            coordinate={{ latitude: b.lat, longitude: b.lng }}
+            onPress={(e) => { e.stopPropagation?.(); setSelectedBroadcast(b); }}
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges={false}
+          >
+            <GlowingBroadcastMarker broadcast={b} />
           </Marker>
         ))}
         {statuses.map((s) => (
@@ -1337,7 +1444,7 @@ export default function ExploreScreen() {
         </Animated.View>
       )}
 
-      {/* ── Broadcast FAB ────────────────────────────────────────────── */}
+      {/* ── Status FAB ───────────────────────────────────────────────── */}
       <TouchableOpacity
         style={{
           position: "absolute", bottom: 130, left: 16, zIndex: 25,
@@ -1639,6 +1746,185 @@ export default function ExploreScreen() {
           <TouchableOpacity onPress={() => { setPickingStatusPin(false); setShowStatusModal(true); }} style={{ marginTop: 8 }}>
             <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: 12 }}>Cancel</Text>
           </TouchableOpacity>
+        </View>
+      )}
+
+      {/* ── Broadcast FAB ────────────────────────────────────────────── */}
+      <TouchableOpacity
+        style={{
+          position: "absolute", bottom: 254, left: 16, zIndex: 25,
+          width: 56, height: 56, borderRadius: 28,
+          backgroundColor: "#F5A623",
+          alignItems: "center", justifyContent: "center",
+          shadowColor: "#F5A623", shadowOpacity: 0.45, shadowRadius: 12, elevation: 9,
+        }}
+        onPress={() => router.push("/create-broadcast")}
+      >
+        <Text style={{ fontSize: 24 }}>📡</Text>
+      </TouchableOpacity>
+
+      {/* ── Broadcast detail sheet ───────────────────────────────────── */}
+      {selectedBroadcast && (
+        <View style={{
+          position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 30,
+          backgroundColor: "#FFFFFF",
+          borderTopLeftRadius: 24, borderTopRightRadius: 24,
+          padding: 20,
+          shadowColor: "#000", shadowOpacity: 0.14, shadowRadius: 20,
+          shadowOffset: { width: 0, height: -6 }, elevation: 16,
+        }}>
+          {/* Handle */}
+          <View style={{ alignSelf: "center", width: 40, height: 4, backgroundColor: "#EDE9E3", borderRadius: 99, marginBottom: 16 }} />
+
+          {/* Close */}
+          <TouchableOpacity
+            onPress={() => setSelectedBroadcast(null)}
+            style={{ position: "absolute", top: 18, right: 16, zIndex: 10 }}
+          >
+            <Ionicons name="close-circle" size={26} color="#d1d5db" />
+          </TouchableOpacity>
+
+          {/* Header: emoji + title */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12, paddingRight: 36 }}>
+            <Text style={{ fontSize: 36 }}>{BROADCAST_EMOJIS[selectedBroadcast.type] ?? "📍"}</Text>
+            <Text style={{ fontSize: 18, fontWeight: "700", color: "#1C1C1E", flex: 1 }} numberOfLines={2}>
+              {selectedBroadcast.title}
+            </Text>
+          </View>
+
+          {/* Creator row */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <View style={{
+              width: 36, height: 36, borderRadius: 18,
+              backgroundColor: avatarColor(selectedBroadcast.creator_username),
+              alignItems: "center", justifyContent: "center",
+            }}>
+              <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>
+                {selectedBroadcast.creator_username?.[0]?.toUpperCase()}
+              </Text>
+            </View>
+            <View>
+              <Text style={{ fontWeight: "700", color: "#1C1C1E" }}>@{selectedBroadcast.creator_username}</Text>
+              {selectedBroadcast.creator_bio ? (
+                <Text style={{ fontSize: 12, color: "#6B7280" }} numberOfLines={1}>{selectedBroadcast.creator_bio}</Text>
+              ) : null}
+            </View>
+          </View>
+
+          {/* Info pills */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <View style={{ backgroundColor: "#FFF8EC", borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: "#F5A62330" }}>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: "#F5A623" }}>
+                  {BROADCAST_EMOJIS[selectedBroadcast.type] ?? "📍"} {selectedBroadcast.type ?? "Other"}
+                </Text>
+              </View>
+              {selectedBroadcast.scheduled_at ? (
+                <View style={{ backgroundColor: "#F7F5F0", borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5 }}>
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: "#6B7280" }}>
+                    📅 {new Date(selectedBroadcast.scheduled_at).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  </Text>
+                </View>
+              ) : (
+                <View style={{ backgroundColor: "#F7F5F0", borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5 }}>
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: "#6B7280" }}>🤷 Flexible</Text>
+                </View>
+              )}
+              {selectedBroadcast.location_name ? (
+                <View style={{ backgroundColor: "#F7F5F0", borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5 }}>
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: "#6B7280" }} numberOfLines={1}>
+                    📍 {selectedBroadcast.location_name}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </ScrollView>
+
+          {/* Participant count */}
+          {selectedBroadcast.participant_count != null && (
+            <Text style={{ fontSize: 13, color: "#9CA3AF", marginBottom: 14 }}>
+              {selectedBroadcast.participant_count} joined
+            </Text>
+          )}
+
+          {/* Description */}
+          {selectedBroadcast.description ? (
+            <Text style={{ fontSize: 14, color: "#374151", marginBottom: 14, lineHeight: 20 }}>
+              {selectedBroadcast.description}
+            </Text>
+          ) : null}
+
+          {/* Action button */}
+          {selectedBroadcast.creator_id === currentUser?.id ? (
+            <TouchableOpacity
+              style={{
+                paddingVertical: 14, borderRadius: 14, alignItems: "center",
+                backgroundColor: "#FFF0F0", borderWidth: 1, borderColor: "#fecaca",
+              }}
+              onPress={async () => {
+                Alert.alert("Delete broadcast", "Are you sure?", [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Delete", style: "destructive", onPress: async () => {
+                      try {
+                        await deleteBroadcast(selectedBroadcast.id);
+                        setBroadcasts((prev) => prev.filter((b) => b.id !== selectedBroadcast.id));
+                        setSelectedBroadcast(null);
+                      } catch {
+                        Alert.alert("Error", "Could not delete broadcast.");
+                      }
+                    },
+                  },
+                ]);
+              }}
+            >
+              <Text style={{ color: "#ef4444", fontWeight: "700", fontSize: 15 }}>Delete Broadcast</Text>
+            </TouchableOpacity>
+          ) : selectedBroadcast.my_request_status === "accepted" ? (
+            <TouchableOpacity
+              style={{
+                paddingVertical: 14, borderRadius: 14, alignItems: "center",
+                backgroundColor: "#00A878",
+              }}
+              onPress={() => { setSelectedBroadcast(null); router.push("/chats"); }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>Joined! Open Chat →</Text>
+            </TouchableOpacity>
+          ) : selectedBroadcast.my_request_status === "pending" ? (
+            <View style={{
+              paddingVertical: 14, borderRadius: 14, alignItems: "center",
+              backgroundColor: "#F7F5F0", borderWidth: 1, borderColor: "#EDE9E3",
+            }}>
+              <Text style={{ color: "#9CA3AF", fontWeight: "600", fontSize: 15 }}>
+                Request sent — waiting for approval
+              </Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[{
+                paddingVertical: 14, borderRadius: 14, alignItems: "center",
+                backgroundColor: "#F5A623",
+                shadowColor: "#F5A623", shadowOpacity: 0.4, shadowRadius: 10, elevation: 5,
+              }, broadcastRequestLoading && { opacity: 0.6 }]}
+              onPress={async () => {
+                setBroadcastRequestLoading(true);
+                try {
+                  const updated = await requestToJoin(selectedBroadcast.id);
+                  setSelectedBroadcast((prev) => ({ ...prev, my_request_status: "pending", ...updated }));
+                } catch (err) {
+                  const detail = err?.response?.data?.detail;
+                  Alert.alert("Error", detail ? String(detail) : "Could not send request.");
+                } finally {
+                  setBroadcastRequestLoading(false);
+                }
+              }}
+              disabled={broadcastRequestLoading}
+            >
+              {broadcastRequestLoading
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>Request to Join</Text>}
+            </TouchableOpacity>
+          )}
         </View>
       )}
 

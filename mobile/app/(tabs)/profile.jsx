@@ -24,6 +24,8 @@ import { getMe, updateMe } from "../../src/api/users";
 import { getCollections } from "../../src/api/collections";
 import api from "../../src/api/axios";
 import { getMyStatus, updateStatus } from "../../src/api/status";
+import { getMyBroadcasts } from "../../src/api/broadcasts";
+import { getChats } from "../../src/api/chats";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000";
 import { getFriends } from "../../src/api/friends";
@@ -48,6 +50,10 @@ const AVATAR_COLORS = ["#6366f1", "#f97316", "#22c55e", "#3b82f6", "#a855f7", "#
 function avatarColor(name) {
   return AVATAR_COLORS[(name?.charCodeAt(0) ?? 0) % AVATAR_COLORS.length];
 }
+
+const BROADCAST_TYPE_EMOJIS = {
+  trip: "🗺️", food: "🍽️", drinks: "🍻", hangout: "🛋️", sport: "⚽", other: "📍",
+};
 
 // ── Chip pill ──────────────────────────────────────────────────────────────────
 function Chip({ label, color, active, onPress }) {
@@ -97,6 +103,8 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState({ collections: null, places: null, friends: null });
   const [myStatus, setMyStatus] = useState(null);
+  const [myBroadcasts, setMyBroadcasts] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState({});
   const [saving, setSaving] = useState(false);
@@ -134,6 +142,15 @@ export default function ProfileScreen() {
     loadProfile();
     loadStats();
     getMyStatus().then(s => setMyStatus(s)).catch(() => {});
+    getMyBroadcasts()
+      .then(bs => setMyBroadcasts((bs || []).filter(b => b.is_active !== false)))
+      .catch(() => {});
+    getChats()
+      .then(cs => {
+        const total = (cs || []).reduce((sum, c) => sum + (c.unread_count ?? 0), 0);
+        setUnreadCount(total);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -369,6 +386,105 @@ export default function ProfileScreen() {
             </View>
           );
         })()}
+
+        {/* ── Chats button ─────────────────────────────────────────── */}
+        <TouchableOpacity
+          style={{
+            marginHorizontal: 16, marginTop: 12,
+            backgroundColor: "#fff", borderRadius: 16, padding: 14,
+            flexDirection: "row", alignItems: "center", gap: 12,
+            shadowColor: "#F5A623", shadowOpacity: 0.1, shadowRadius: 10,
+            shadowOffset: { width: 0, height: 3 }, elevation: 3,
+            borderWidth: 1, borderColor: "#EDE9E330",
+          }}
+          onPress={() => router.push("/chats")}
+          activeOpacity={0.75}
+        >
+          <View style={{
+            width: 40, height: 40, borderRadius: 12,
+            backgroundColor: "#FFF8EC",
+            alignItems: "center", justifyContent: "center",
+          }}>
+            <Text style={{ fontSize: 20 }}>💬</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: "700", color: "#1C1C1E" }}>Chats</Text>
+            <Text style={{ fontSize: 12, color: "#6B7280", marginTop: 1 }}>
+              Messages from broadcasts
+            </Text>
+          </View>
+          {unreadCount > 0 && (
+            <View style={{
+              backgroundColor: "#F5A623", borderRadius: 99,
+              minWidth: 22, height: 22, alignItems: "center", justifyContent: "center",
+              paddingHorizontal: 6,
+            }}>
+              <Text style={{ color: "#fff", fontSize: 12, fontWeight: "800" }}>
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </Text>
+            </View>
+          )}
+          <Text style={{ fontSize: 20, color: "#EDE9E3" }}>›</Text>
+        </TouchableOpacity>
+
+        {/* ── My Broadcasts section ─────────────────────────────────── */}
+        {myBroadcasts.length > 0 && (
+          <View style={{ marginHorizontal: 16, marginTop: 16 }}>
+            {/* Section header */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <Text style={{
+                fontSize: 11, fontWeight: "700", color: "#A09A93",
+                textTransform: "uppercase", letterSpacing: 1.2,
+              }}>
+                📡 My Broadcasts
+              </Text>
+              <TouchableOpacity
+                onPress={() => router.push("/broadcast-requests")}
+                style={{
+                  flexDirection: "row", alignItems: "center", gap: 5,
+                  backgroundColor: "#FFF8EC", borderRadius: 99,
+                  paddingHorizontal: 10, paddingVertical: 5,
+                  borderWidth: 1, borderColor: "#F5A62330",
+                }}
+              >
+                <Ionicons name="people-outline" size={13} color="#F5A623" />
+                <Text style={{ fontSize: 12, fontWeight: "600", color: "#F5A623" }}>View Requests</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Horizontal cards */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 10, paddingRight: 4 }}
+            >
+              {myBroadcasts.map(b => (
+                <TouchableOpacity
+                  key={b.id}
+                  style={{
+                    backgroundColor: "#fff", borderRadius: 16,
+                    padding: 14, width: 160,
+                    shadowColor: "#F5A623", shadowOpacity: 0.1, shadowRadius: 10,
+                    shadowOffset: { width: 0, height: 3 }, elevation: 3,
+                    borderWidth: 1, borderColor: "#F5A62315",
+                  }}
+                  activeOpacity={0.8}
+                  onPress={() => router.push("/broadcast-requests")}
+                >
+                  <Text style={{ fontSize: 28, marginBottom: 6 }}>
+                    {BROADCAST_TYPE_EMOJIS[b.type] ?? "📡"}
+                  </Text>
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: "#1C1C1E" }} numberOfLines={2}>
+                    {b.title}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>
+                    {b.participant_count ?? 0} joined
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         {/* ── About card ──────────────────────────────────────────────── */}
         {(profile?.age || profile?.study || profile?.work || profile?.living) ? (
