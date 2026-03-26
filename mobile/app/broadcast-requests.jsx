@@ -100,7 +100,7 @@ export default function BroadcastRequestsScreen() {
 
         {/* Broadcast label */}
         <View style={styles.broadcastChip}>
-          <Ionicons name="radio-outline" size={13} color="#F5A623" />
+          <Ionicons name="radio-outline" size={13} color="#0EA5E9" />
           <Text style={styles.broadcastChipText} numberOfLines={1}>
             Wants to join: {broadcast.title}
           </Text>
@@ -136,7 +136,7 @@ export default function BroadcastRequestsScreen() {
   if (loading) {
     return (
       <View style={[styles.root, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color="#F5A623" />
+        <ActivityIndicator size="large" color="#0EA5E9" />
       </View>
     );
   }
@@ -166,7 +166,7 @@ export default function BroadcastRequestsScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => { setRefreshing(true); loadRequests(); }}
-              tintColor="#F5A623"
+              tintColor="#0EA5E9"
             />
           }
           ListHeaderComponent={
@@ -181,7 +181,7 @@ export default function BroadcastRequestsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F7F5F0" },
+  root: { flex: 1, backgroundColor: "#F0F7FF" },
 
   emptyContainer: {
     flex: 1,
@@ -234,16 +234,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#FFF8EC",
+    backgroundColor: "#EFF6FF",
     borderRadius: 99,
     paddingHorizontal: 10,
     paddingVertical: 5,
     alignSelf: "flex-start",
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#F5A62330",
+    borderColor: "#0EA5E930",
   },
-  broadcastChipText: { fontSize: 12, color: "#F5A623", fontWeight: "600" },
+  broadcastChipText: { fontSize: 12, color: "#0EA5E9", fontWeight: "600" },
 
   actions: {
     flexDirection: "row",
@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
   },
   declineBtnText: { fontSize: 14, fontWeight: "600", color: "#ef4444" },
   acceptBtn: {
-    backgroundColor: "#00A878",
+    backgroundColor: "#2563EB",
   },
   acceptBtnText: { fontSize: 14, fontWeight: "600", color: "#fff" },
 });

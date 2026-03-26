@@ -156,7 +156,7 @@ export default function ChatScreen() {
   }
 
   return (
-    <View style={[styles.root, { backgroundColor: "#F7F5F0" }]}>
+    <View style={[styles.root, { backgroundColor: "#F0F7FF" }]}>
       {/* Custom header */}
       <SafeAreaView style={styles.headerSafe}>
         <View style={styles.header}>
@@ -165,7 +165,7 @@ export default function ChatScreen() {
             style={styles.backBtn}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="chevron-back" size={24} color="#F5A623" />
+            <Ionicons name="chevron-back" size={24} color="#2563EB" />
           </TouchableOpacity>
 
           {otherParticipant ? (
@@ -194,7 +194,7 @@ export default function ChatScreen() {
       >
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#F5A623" />
+            <ActivityIndicator size="large" color="#2563EB" />
           </View>
         ) : messages.length === 0 ? (
           <View style={styles.emptyContainer}>
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
   headerSafe: {
     backgroundColor: "#fff",
     borderBottomWidth: 1,
-    borderBottomColor: "#EDE9E3",
+    borderBottomColor: "#DBEAFE",
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 6,
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
     maxWidth: "100%",
   },
   bubbleOwn: {
-    backgroundColor: "#F5A623",
+    backgroundColor: "#2563EB",
     borderBottomRightRadius: 4,
   },
   bubbleOther: {
@@ -340,11 +340,11 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     backgroundColor: "#fff",
     borderTopWidth: 1,
-    borderTopColor: "#EDE9E3",
+    borderTopColor: "#DBEAFE",
   },
   input: {
     flex: 1,
-    backgroundColor: "#F7F5F0",
+    backgroundColor: "#F0F7FF",
     borderRadius: 22,
     paddingHorizontal: 16,
     paddingVertical: Platform.OS === "ios" ? 10 : 8,
@@ -352,17 +352,17 @@ const styles = StyleSheet.create({
     color: "#111827",
     maxHeight: 100,
     borderWidth: 1,
-    borderColor: "#EDE9E3",
+    borderColor: "#DBEAFE",
   },
   sendBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#F5A623",
+    backgroundColor: "#2563EB",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-    shadowColor: "#F5A623",
+    shadowColor: "#2563EB",
     shadowOpacity: 0.4,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },

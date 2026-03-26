@@ -261,7 +261,7 @@ export default function ProfileScreen() {
   const displayedHobbies = profile?.hobbies ?? [];
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#f5f3ff" }}>
+    <View style={{ flex: 1, backgroundColor: "#F0F7FF" }}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 40 }}
@@ -269,7 +269,7 @@ export default function ProfileScreen() {
       >
         {/* ── Hero gradient header ─────────────────────────────────────── */}
         <LinearGradient
-          colors={["#ffecd2", "#fcb69f", "#ff9a9e", "#a18cd1", "#c084fc"]}
+          colors={["#dbeafe", "#93c5fd", "#60a5fa", "#3b82f6", "#2563EB"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[styles.hero, { paddingTop: insets.top + 16 }]}
@@ -318,13 +318,13 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statBox}>
-            <Text style={[styles.statIcon, { backgroundColor: "#f5f3ff" }]}>📍</Text>
+            <Text style={[styles.statIcon, { backgroundColor: "#eff6ff" }]}>📍</Text>
             <Text style={styles.statValue}>{stats.places ?? "—"}</Text>
             <Text style={styles.statLabel}>Places</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statBox}>
-            <Text style={[styles.statIcon, { backgroundColor: "#fdf4ff" }]}>👥</Text>
+            <Text style={[styles.statIcon, { backgroundColor: "#eff6ff" }]}>👥</Text>
             <Text style={styles.statValue}>{stats.friends ?? "—"}</Text>
             <Text style={styles.statLabel}>Friends</Text>
           </View>
@@ -333,8 +333,8 @@ export default function ProfileScreen() {
         {/* ── Active status banner ─────────────────────────────────────── */}
         {myStatus && (() => {
           const isLive = myStatus.mode === "live";
-          const accent = isLive ? "#F4743B" : "#7C5CBF";
-          const bg = isLive ? "#FFF8F5" : "#F5F3FF";
+          const accent = isLive ? "#38BDF8" : "#6366F1";
+          const bg = isLive ? "#EFF6FF" : "#EEF2FF";
           return (
             <View style={{
               marginHorizontal: 16, marginTop: 12,
@@ -393,16 +393,16 @@ export default function ProfileScreen() {
             marginHorizontal: 16, marginTop: 12,
             backgroundColor: "#fff", borderRadius: 16, padding: 14,
             flexDirection: "row", alignItems: "center", gap: 12,
-            shadowColor: "#F5A623", shadowOpacity: 0.1, shadowRadius: 10,
+            shadowColor: "#2563EB", shadowOpacity: 0.1, shadowRadius: 10,
             shadowOffset: { width: 0, height: 3 }, elevation: 3,
-            borderWidth: 1, borderColor: "#EDE9E330",
+            borderWidth: 1, borderColor: "#DBEAFE",
           }}
           onPress={() => router.push("/chats")}
           activeOpacity={0.75}
         >
           <View style={{
             width: 40, height: 40, borderRadius: 12,
-            backgroundColor: "#FFF8EC",
+            backgroundColor: "#EFF6FF",
             alignItems: "center", justifyContent: "center",
           }}>
             <Text style={{ fontSize: 20 }}>💬</Text>
@@ -415,7 +415,7 @@ export default function ProfileScreen() {
           </View>
           {unreadCount > 0 && (
             <View style={{
-              backgroundColor: "#F5A623", borderRadius: 99,
+              backgroundColor: "#2563EB", borderRadius: 99,
               minWidth: 22, height: 22, alignItems: "center", justifyContent: "center",
               paddingHorizontal: 6,
             }}>
@@ -424,7 +424,7 @@ export default function ProfileScreen() {
               </Text>
             </View>
           )}
-          <Text style={{ fontSize: 20, color: "#EDE9E3" }}>›</Text>
+          <Text style={{ fontSize: 20, color: "#DBEAFE" }}>›</Text>
         </TouchableOpacity>
 
         {/* ── My Broadcasts section ─────────────────────────────────── */}
@@ -442,13 +442,13 @@ export default function ProfileScreen() {
                 onPress={() => router.push("/broadcast-requests")}
                 style={{
                   flexDirection: "row", alignItems: "center", gap: 5,
-                  backgroundColor: "#FFF8EC", borderRadius: 99,
+                  backgroundColor: "#EFF6FF", borderRadius: 99,
                   paddingHorizontal: 10, paddingVertical: 5,
-                  borderWidth: 1, borderColor: "#F5A62330",
+                  borderWidth: 1, borderColor: "#0EA5E930",
                 }}
               >
-                <Ionicons name="people-outline" size={13} color="#F5A623" />
-                <Text style={{ fontSize: 12, fontWeight: "600", color: "#F5A623" }}>View Requests</Text>
+                <Ionicons name="people-outline" size={13} color="#0EA5E9" />
+                <Text style={{ fontSize: 12, fontWeight: "600", color: "#0EA5E9" }}>View Requests</Text>
               </TouchableOpacity>
             </View>
 
@@ -464,9 +464,9 @@ export default function ProfileScreen() {
                   style={{
                     backgroundColor: "#fff", borderRadius: 16,
                     padding: 14, width: 160,
-                    shadowColor: "#F5A623", shadowOpacity: 0.1, shadowRadius: 10,
+                    shadowColor: "#0EA5E9", shadowOpacity: 0.1, shadowRadius: 10,
                     shadowOffset: { width: 0, height: 3 }, elevation: 3,
-                    borderWidth: 1, borderColor: "#F5A62315",
+                    borderWidth: 1, borderColor: "#DBEAFE",
                   }}
                   activeOpacity={0.8}
                   onPress={() => router.push("/broadcast-requests")}
@@ -718,7 +718,7 @@ const styles = StyleSheet.create({
     marginTop: -20,
     borderRadius: 20,
     paddingVertical: 16,
-    shadowColor: "#a78bfa",
+    shadowColor: "#2563EB",
     shadowOpacity: 0.18,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 },
@@ -740,13 +740,13 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    shadowColor: "#2dd4bf",
+    shadowColor: "#2563EB",
     shadowOpacity: 0.07,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
     elevation: 3,
     borderLeftWidth: 3,
-    borderLeftColor: "#c4b5fd",
+    borderLeftColor: "#93c5fd",
   },
   cardTitle: {
     fontSize: 11,
@@ -828,7 +828,7 @@ const styles = StyleSheet.create({
   },
   sheetCancel: { fontSize: 16, color: "#64748b" },
   sheetTitle: { fontSize: 17, fontWeight: "700", color: "#0f172a" },
-  sheetSave: { fontSize: 16, fontWeight: "700", color: "#0d9488" },
+  sheetSave: { fontSize: 16, fontWeight: "700", color: "#2563EB" },
   sheetBody: { flex: 1, backgroundColor: "#f8fafc", paddingHorizontal: 16, paddingTop: 16 },
 
   fieldLabel: { fontSize: 12, fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6, marginTop: 14 },
@@ -846,7 +846,7 @@ const styles = StyleSheet.create({
   addBtn: {
     width: 46,
     height: 46,
-    backgroundColor: "#0d9488",
+    backgroundColor: "#2563EB",
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",

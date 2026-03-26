@@ -115,7 +115,7 @@ export default function ChatsScreen() {
   if (loading) {
     return (
       <View style={[styles.root, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color="#F5A623" />
+        <ActivityIndicator size="large" color="#2563EB" />
       </View>
     );
   }
@@ -141,7 +141,7 @@ export default function ChatsScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => { setRefreshing(true); loadChats(); }}
-              tintColor="#F5A623"
+              tintColor="#2563EB"
             />
           }
         />
@@ -151,7 +151,7 @@ export default function ChatsScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F7F5F0" },
+  root: { flex: 1, backgroundColor: "#F0F7FF" },
 
   emptyContainer: {
     flex: 1,
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
 
   broadcastTitle: {
     fontSize: 11,
-    color: "#F5A623",
+    color: "#0EA5E9",
     fontWeight: "600",
     marginBottom: 2,
   },
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
   lastMessageUnread: { color: "#1C1C1E", fontWeight: "600" },
 
   unreadBadge: {
-    backgroundColor: "#F5A623",
+    backgroundColor: "#2563EB",
     borderRadius: 99,
     minWidth: 20,
     height: 20,
@@ -228,5 +228,5 @@ const styles = StyleSheet.create({
   },
   unreadBadgeText: { color: "#fff", fontSize: 11, fontWeight: "800" },
 
-  separator: { height: 1, backgroundColor: "#EDE9E3", marginLeft: 78 },
+  separator: { height: 1, backgroundColor: "#DBEAFE", marginLeft: 78 },
 });

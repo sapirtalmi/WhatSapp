@@ -43,7 +43,7 @@ const MAP_TYPES = [
 ];
 
 const TYPE_FILTERS = [
-  { value: null,       label: "All",      color: "#2dd4bf" },
+  { value: null,       label: "All",      color: "#2563EB" },
   { value: "food",     label: "🍽 Food",  color: "#f97316" },
   { value: "travel",   label: "✈️ Travel",color: "#3b82f6" },
   { value: "exercise", label: "🏋 Gym",   color: "#ef4444" },
@@ -61,7 +61,7 @@ const DEFAULT_REGION = {
   latitudeDelta: 12, longitudeDelta: 12,
 };
 
-const AVATAR_COLORS = ["#2dd4bf","#f97316","#22c55e","#3b82f6","#a855f7","#ec4899"];
+const AVATAR_COLORS = ["#2563EB","#f97316","#22c55e","#3b82f6","#a855f7","#ec4899"];
 function avatarColor(name) {
   return AVATAR_COLORS[(name?.charCodeAt(0) ?? 0) % AVATAR_COLORS.length];
 }
@@ -156,14 +156,14 @@ function GlowingBroadcastMarker({ broadcast }) {
       {/* Glow ring */}
       <Animated.View style={{
         position: "absolute", width: 44, height: 44, borderRadius: 22,
-        backgroundColor: "#F5A623", opacity, transform: [{ scale }],
+        backgroundColor: "#0EA5E9", opacity, transform: [{ scale }],
       }} />
       {/* Inner circle */}
       <View style={{
         width: 44, height: 44, borderRadius: 22,
-        backgroundColor: "#F5A623", borderWidth: 3, borderColor: "#fff",
+        backgroundColor: "#0EA5E9", borderWidth: 3, borderColor: "#fff",
         alignItems: "center", justifyContent: "center",
-        shadowColor: "#F5A623", shadowOpacity: 0.5, shadowRadius: 8, elevation: 6,
+        shadowColor: "#0EA5E9", shadowOpacity: 0.5, shadowRadius: 8, elevation: 6,
       }}>
         <Text style={{ fontSize: 20 }}>
           {BROADCAST_EMOJIS[broadcast.type] ?? "📍"}
@@ -173,7 +173,7 @@ function GlowingBroadcastMarker({ broadcast }) {
       <View style={{
         position: "absolute", top: 0, right: 0,
         width: 18, height: 18, borderRadius: 9,
-        backgroundColor: "#00A878", borderWidth: 1.5, borderColor: "#fff",
+        backgroundColor: "#2563EB", borderWidth: 1.5, borderColor: "#fff",
         alignItems: "center", justifyContent: "center",
       }}>
         <Text style={{ color: "#fff", fontSize: 8, fontWeight: "800" }}>{initial}</Text>
@@ -290,20 +290,20 @@ function PostStatusModal({ visible, onClose, myStatus, onPosted, pinnedLocation,
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
-        <View style={{ flex: 1, backgroundColor: "#F7F5F0" }}>
+        <View style={{ flex: 1, backgroundColor: "#F0F7FF" }}>
           {/* Header */}
           <View style={{
             flexDirection: "row", alignItems: "center", justifyContent: "space-between",
             paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16,
             backgroundColor: "#FFFFFF",
-            borderBottomWidth: 1, borderBottomColor: "#EDE9E3",
+            borderBottomWidth: 1, borderBottomColor: "#DBEAFE",
           }}>
             <TouchableOpacity onPress={onClose}>
               <Text style={{ color: "#6B7280", fontSize: 16 }}>Cancel</Text>
             </TouchableOpacity>
             <Text style={{ fontWeight: "600", fontSize: 17, color: "#1C1C1E" }}>Where are you?</Text>
             <TouchableOpacity onPress={handlePost} disabled={posting}>
-              <Text style={{ color: posting ? "#9CA3AF" : "#00A878", fontWeight: "700", fontSize: 16 }}>
+              <Text style={{ color: posting ? "#9CA3AF" : "#2563EB", fontWeight: "700", fontSize: 16 }}>
                 {posting ? "Posting…" : "Post"}
               </Text>
             </TouchableOpacity>
@@ -311,7 +311,7 @@ function PostStatusModal({ visible, onClose, myStatus, onPosted, pinnedLocation,
 
           <ScrollView contentContainerStyle={{ padding: 20, gap: 20 }}>
             {/* Mode toggle */}
-            <View style={{ flexDirection: "row", backgroundColor: "#EDE9E3", borderRadius: 50, padding: 4 }}>
+            <View style={{ flexDirection: "row", backgroundColor: "#DBEAFE", borderRadius: 50, padding: 4 }}>
               {[["live", "Live Now", "radio-button-on-outline"], ["plan", "Future Plan", "calendar-outline"]].map(([m, label, icon]) => (
                 <TouchableOpacity
                   key={m}
@@ -344,16 +344,16 @@ function PostStatusModal({ visible, onClose, myStatus, onPosted, pinnedLocation,
                         style={{
                           paddingHorizontal: 14, paddingVertical: 10, borderRadius: 50,
                           backgroundColor: selected ? "#E8F7F2" : "#fff",
-                          borderWidth: 1.5, borderColor: selected ? "#00A878" : "#EDE9E3",
+                          borderWidth: 1.5, borderColor: selected ? "#2563EB" : "#DBEAFE",
                           alignItems: "center", minWidth: 66,
                         }}
                       >
                         <Ionicons
                           name={ACTIVITY_ICONS[type]}
                           size={20}
-                          color={selected ? "#00A878" : "#9CA3AF"}
+                          color={selected ? "#2563EB" : "#9CA3AF"}
                         />
-                        <Text style={{ fontSize: 10, fontWeight: "600", color: selected ? "#00A878" : "#6B7280", marginTop: 4 }}>
+                        <Text style={{ fontSize: 10, fontWeight: "600", color: selected ? "#2563EB" : "#6B7280", marginTop: 4 }}>
                           {label}
                         </Text>
                       </TouchableOpacity>
@@ -386,7 +386,7 @@ function PostStatusModal({ visible, onClose, myStatus, onPosted, pinnedLocation,
               overflow: "hidden",
             }}>
               <View style={{ flexDirection: "row", alignItems: "center", padding: 14 }}>
-                <Ionicons name="location-outline" size={18} color="#00A878" style={{ marginRight: 8 }} />
+                <Ionicons name="location-outline" size={18} color="#2563EB" style={{ marginRight: 8 }} />
                 <TextInput
                   placeholder="Location name (optional)"
                   placeholderTextColor="#9CA3AF"
@@ -395,21 +395,21 @@ function PostStatusModal({ visible, onClose, myStatus, onPosted, pinnedLocation,
                   style={{ flex: 1, color: "#1C1C1E", fontSize: 15 }}
                 />
               </View>
-              <View style={{ height: 1, backgroundColor: "#F3F0EA", marginHorizontal: 14 }} />
+              <View style={{ height: 1, backgroundColor: "#DBEAFE", marginHorizontal: 14 }} />
               <TouchableOpacity
                 onPress={onPickLocation}
                 style={{ flexDirection: "row", alignItems: "center", padding: 14, gap: 8 }}
               >
-                <Ionicons name="map-outline" size={17} color="#7C5CBF" />
-                <Text style={{ fontSize: 14, color: "#7C5CBF", fontWeight: "600" }}>
+                <Ionicons name="map-outline" size={17} color="#6366F1" />
+                <Text style={{ fontSize: 14, color: "#6366F1", fontWeight: "600" }}>
                   {pinnedLocation ? "Location pinned on map" : "Pin on map"}
                 </Text>
                 {pinnedLocation && (
                   <View style={{
-                    marginLeft: "auto", backgroundColor: "#F0EBF8",
+                    marginLeft: "auto", backgroundColor: "#EEF2FF",
                     borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3,
                   }}>
-                    <Text style={{ fontSize: 11, color: "#7C5CBF", fontWeight: "600" }}>
+                    <Text style={{ fontSize: 11, color: "#6366F1", fontWeight: "600" }}>
                       {pinnedLocation.lat.toFixed(4)}, {pinnedLocation.lng.toFixed(4)}
                     </Text>
                   </View>
@@ -430,11 +430,11 @@ function PostStatusModal({ visible, onClose, myStatus, onPosted, pinnedLocation,
                         onPress={() => { setExpiry(val); if (val === "custom") setShowCustomPicker(true); }}
                         style={{
                           flex: 1, minWidth: "22%", paddingVertical: 12, borderRadius: 50, alignItems: "center",
-                          backgroundColor: sel ? "#FEF0EA" : "#fff",
-                          borderWidth: 1.5, borderColor: sel ? "#F4743B" : "#EDE9E3",
+                          backgroundColor: sel ? "#EFF6FF" : "#fff",
+                          borderWidth: 1.5, borderColor: sel ? "#38BDF8" : "#DBEAFE",
                         }}
                       >
-                        <Text style={{ fontWeight: "600", color: sel ? "#F4743B" : "#6B7280", fontSize: 13 }}>{label}</Text>
+                        <Text style={{ fontWeight: "600", color: sel ? "#38BDF8" : "#6B7280", fontSize: 13 }}>{label}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -449,7 +449,7 @@ function PostStatusModal({ visible, onClose, myStatus, onPosted, pinnedLocation,
                         shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
                       }}
                     >
-                      <Ionicons name="time-outline" size={17} color="#F4743B" />
+                      <Ionicons name="time-outline" size={17} color="#38BDF8" />
                       <Text style={{ color: "#1C1C1E", fontSize: 15 }}>
                         Until {customExpiryDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         {" · "}{customExpiryDate.toLocaleDateString([], { month: "short", day: "numeric" })}
@@ -480,7 +480,7 @@ function PostStatusModal({ visible, onClose, myStatus, onPosted, pinnedLocation,
                     flexDirection: "row", alignItems: "center", gap: 8,
                   }}
                 >
-                  <Ionicons name="calendar-outline" size={17} color="#00A878" />
+                  <Ionicons name="calendar-outline" size={17} color="#2563EB" />
                   <Text style={{ color: "#1C1C1E", fontSize: 15 }}>
                     {planDate.toLocaleDateString()} at {planDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </Text>
@@ -509,12 +509,12 @@ function PostStatusModal({ visible, onClose, myStatus, onPosted, pinnedLocation,
                       style={{
                         flex: 1, paddingVertical: 12, borderRadius: 50, alignItems: "center",
                         flexDirection: "row", justifyContent: "center", gap: 6,
-                        backgroundColor: sel ? "#F0EBF8" : "#fff",
-                        borderWidth: 1.5, borderColor: sel ? "#7C5CBF" : "#EDE9E3",
+                        backgroundColor: sel ? "#EEF2FF" : "#fff",
+                        borderWidth: 1.5, borderColor: sel ? "#6366F1" : "#DBEAFE",
                       }}
                     >
-                      <Ionicons name={icon} size={15} color={sel ? "#7C5CBF" : "#9CA3AF"} />
-                      <Text style={{ fontWeight: "600", color: sel ? "#7C5CBF" : "#6B7280", fontSize: 13 }}>{label}</Text>
+                      <Ionicons name={icon} size={15} color={sel ? "#6366F1" : "#9CA3AF"} />
+                      <Text style={{ fontWeight: "600", color: sel ? "#6366F1" : "#6B7280", fontSize: 13 }}>{label}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -525,10 +525,10 @@ function PostStatusModal({ visible, onClose, myStatus, onPosted, pinnedLocation,
             {myStatus && (
               <TouchableOpacity
                 onPress={async () => { await updateStatus(myStatus.id, { is_active: false }); onPosted(); onClose(); }}
-                style={{ paddingVertical: 12, borderRadius: 50, alignItems: "center", backgroundColor: "#FFF0EE", flexDirection: "row", justifyContent: "center", gap: 6 }}
+                style={{ paddingVertical: 12, borderRadius: 50, alignItems: "center", backgroundColor: "#EFF6FF", flexDirection: "row", justifyContent: "center", gap: 6 }}
               >
-                <Ionicons name="stop-circle-outline" size={16} color="#F4743B" />
-                <Text style={{ color: "#F4743B", fontWeight: "600" }}>End Current Status</Text>
+                <Ionicons name="stop-circle-outline" size={16} color="#38BDF8" />
+                <Text style={{ color: "#38BDF8", fontWeight: "600" }}>End Current Status</Text>
               </TouchableOpacity>
             )}
           </ScrollView>
@@ -979,7 +979,7 @@ export default function ExploreScreen() {
         {searchPin && (
           <Marker
             coordinate={{ latitude: searchPin.lat, longitude: searchPin.lng }}
-            pinColor="#2dd4bf"
+            pinColor="#2563EB"
             title={searchPin.label}
           />
         )}
@@ -1003,7 +1003,7 @@ export default function ExploreScreen() {
             }}
             tracksViewChanges={false}
           >
-            <DotMarker color={TYPE_COLORS[place.type] ?? "#2dd4bf"} />
+            <DotMarker color={TYPE_COLORS[place.type] ?? "#2563EB"} />
           </Marker>
         ))}
         {broadcasts.map((b) => (
@@ -1025,7 +1025,7 @@ export default function ExploreScreen() {
             anchor={{ x: 0.5, y: 0.5 }}
             tracksViewChanges={false}
           >
-            <PulsingMarker color={s.mode === "live" ? "#F4743B" : "#7C5CBF"} />
+            <PulsingMarker color={s.mode === "live" ? "#38BDF8" : "#6366F1"} />
           </Marker>
         ))}
       </MapView>
@@ -1043,7 +1043,7 @@ export default function ExploreScreen() {
             returnKeyType="search"
             clearButtonMode="never"
           />
-          {searchLoading && <ActivityIndicator size="small" color="#2dd4bf" style={{ marginLeft: 4 }} />}
+          {searchLoading && <ActivityIndicator size="small" color="#2563EB" style={{ marginLeft: 4 }} />}
           {!searchLoading && searchText.length > 0 && (
             <TouchableOpacity onPress={clearSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="close-circle" size={17} color="#d1d5db" />
@@ -1088,12 +1088,12 @@ export default function ExploreScreen() {
                 flexDirection: "row", alignItems: "center", gap: 6,
                 alignSelf: "flex-start", marginTop: 6, marginLeft: 4,
                 paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99,
-                backgroundColor: nlUseMapArea ? "#eef2ff" : "rgba(255,255,255,0.85)",
-                borderWidth: 1, borderColor: nlUseMapArea ? "#6366f1" : "#e5e7eb",
+                backgroundColor: nlUseMapArea ? "#EEF2FF" : "rgba(255,255,255,0.85)",
+                borderWidth: 1, borderColor: nlUseMapArea ? "#2563EB" : "#e5e7eb",
               }}
             >
-              <Ionicons name="map-outline" size={13} color={nlUseMapArea ? "#6366f1" : "#9ca3af"} />
-              <Text style={{ fontSize: 11, fontWeight: "600", color: nlUseMapArea ? "#6366f1" : "#9ca3af" }}>
+              <Ionicons name="map-outline" size={13} color={nlUseMapArea ? "#2563EB" : "#9ca3af"} />
+              <Text style={{ fontSize: 11, fontWeight: "600", color: nlUseMapArea ? "#2563EB" : "#9ca3af" }}>
                 Visible area only
               </Text>
             </TouchableOpacity>
@@ -1138,13 +1138,13 @@ export default function ExploreScreen() {
           <FilterChip
             label="Everyone"
             active={selectedUser === "all"}
-            color="#2dd4bf"
+            color="#2563EB"
             onPress={() => setSelectedUser("all")}
           />
           <FilterChip
             label="My Places"
             active={selectedUser === "mine"}
-            color="#34d399"
+            color="#38BDF8"
             onPress={() => setSelectedUser("mine")}
           />
           {friends.map((f) => {
@@ -1154,7 +1154,7 @@ export default function ExploreScreen() {
                 key={f.id}
                 label={f.user.username}
                 active={isActive}
-                color="#3b82f6"
+                color="#2563EB"
                 onPress={() => setSelectedUser(isActive ? "all" : f.user.id)}
                 initial={f.user.username[0].toUpperCase()}
                 avatarBg={avatarColor(f.user.username)}
@@ -1221,10 +1221,10 @@ export default function ExploreScreen() {
           <View style={styles.sheetTypeBadge}>
             <View style={[
               styles.typePill,
-              { borderColor: TYPE_COLORS[selectedPlace.type] ?? "#2dd4bf" },
-              { backgroundColor: (TYPE_COLORS[selectedPlace.type] ?? "#2dd4bf") + "18" },
+              { borderColor: TYPE_COLORS[selectedPlace.type] ?? "#2563EB" },
+              { backgroundColor: (TYPE_COLORS[selectedPlace.type] ?? "#2563EB") + "18" },
             ]}>
-              <Text style={[styles.typePillText, { color: TYPE_COLORS[selectedPlace.type] ?? "#2dd4bf" }]}>
+              <Text style={[styles.typePillText, { color: TYPE_COLORS[selectedPlace.type] ?? "#2563EB" }]}>
                 {TYPE_FILTERS.find((t) => t.value === selectedPlace.type)?.label ?? selectedPlace.type ?? "Place"}
               </Text>
             </View>
@@ -1251,7 +1251,7 @@ export default function ExploreScreen() {
           <Text style={styles.sheetName}>{searchPin.label}</Text>
           {locationInfoLoading ? (
             <View style={{ alignItems: "center", paddingVertical: 30 }}>
-              <ActivityIndicator color="#2dd4bf" size="large" />
+              <ActivityIndicator color="#2563EB" size="large" />
               <Text style={{ color: "#94a3b8", marginTop: 10, fontSize: 13 }}>Getting info…</Text>
             </View>
           ) : locationInfo ? (
@@ -1274,7 +1274,7 @@ export default function ExploreScreen() {
           <Text style={styles.sheetName}>AI Search</Text>
           {nlLoading ? (
             <View style={{ alignItems: "center", paddingVertical: 30 }}>
-              <ActivityIndicator color="#2dd4bf" size="large" />
+              <ActivityIndicator color="#2563EB" size="large" />
               <Text style={{ color: "#94a3b8", marginTop: 10, fontSize: 13 }}>Searching…</Text>
             </View>
           ) : nlResults?.length === 0 ? (
@@ -1295,13 +1295,13 @@ export default function ExploreScreen() {
                     setSelectedPlace(p);
                   }}
                 >
-                  <View style={[styles.nlResultAccent, { backgroundColor: TYPE_COLORS[p.type] ?? "#2dd4bf" }]} />
+                  <View style={[styles.nlResultAccent, { backgroundColor: TYPE_COLORS[p.type] ?? "#2563EB" }]} />
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                       <Text style={styles.nlResultName} numberOfLines={1}>{p.name}</Text>
                       {p.type && (
-                        <View style={[styles.nlResultBadge, { backgroundColor: (TYPE_COLORS[p.type] ?? "#2dd4bf") + "20" }]}>
-                          <Text style={[styles.nlResultBadgeText, { color: TYPE_COLORS[p.type] ?? "#2dd4bf" }]}>
+                        <View style={[styles.nlResultBadge, { backgroundColor: (TYPE_COLORS[p.type] ?? "#2563EB") + "20" }]}>
+                          <Text style={[styles.nlResultBadgeText, { color: TYPE_COLORS[p.type] ?? "#2563EB" }]}>
                             {TYPE_FILTERS.find((t) => t.value === p.type)?.label ?? p.type}
                           </Text>
                         </View>
@@ -1370,7 +1370,7 @@ export default function ExploreScreen() {
             <Text style={styles.peekCount}>
               {loading ? "Loading…" : `${places.length} place${places.length !== 1 ? "s" : ""}`}
             </Text>
-            {loading && <ActivityIndicator size="small" color="#2dd4bf" />}
+            {loading && <ActivityIndicator size="small" color="#2563EB" />}
             {!loading && places.length > 0 && (
               <TouchableOpacity onPress={() => snapSheet(!sheetExpanded)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Ionicons name={sheetExpanded ? "chevron-down" : "chevron-up"} size={18} color="#9ca3af" />
@@ -1397,7 +1397,7 @@ export default function ExploreScreen() {
                   activeOpacity={0.8}
                   style={styles.placeCard}
                 >
-                  <View style={[styles.cardAccent, { backgroundColor: TYPE_COLORS[item.type] ?? "#2dd4bf" }]} />
+                  <View style={[styles.cardAccent, { backgroundColor: TYPE_COLORS[item.type] ?? "#2563EB" }]} />
                   <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
                   {item.address ? (
                     <Text style={styles.cardAddr} numberOfLines={1}>{item.address}</Text>
@@ -1426,7 +1426,7 @@ export default function ExploreScreen() {
                   activeOpacity={0.75}
                   style={styles.listCard}
                 >
-                  <View style={[styles.cardAccent, { backgroundColor: TYPE_COLORS[item.type] ?? "#2dd4bf" }]} />
+                  <View style={[styles.cardAccent, { backgroundColor: TYPE_COLORS[item.type] ?? "#2563EB" }]} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
                     {item.address ? <Text style={styles.cardAddr} numberOfLines={1}>{item.address}</Text> : null}
@@ -1450,9 +1450,9 @@ export default function ExploreScreen() {
           position: "absolute", bottom: 130, left: 16, zIndex: 25,
           width: 52, height: 52, borderRadius: 26,
           backgroundColor: "#FFFFFF",
-          borderWidth: 2, borderColor: myStatus ? "#F4743B" : "#00A878",
+          borderWidth: 2, borderColor: myStatus ? "#38BDF8" : "#2563EB",
           alignItems: "center", justifyContent: "center",
-          shadowColor: myStatus ? "#F4743B" : "#00A878", shadowOpacity: 0.3, shadowRadius: 10, elevation: 8,
+          shadowColor: myStatus ? "#38BDF8" : "#2563EB", shadowOpacity: 0.3, shadowRadius: 10, elevation: 8,
         }}
         onPress={() => setShowStatusModal(true)}
       >
@@ -1465,9 +1465,9 @@ export default function ExploreScreen() {
           position: "absolute", bottom: 192, left: 16, zIndex: 25,
           width: 52, height: 52, borderRadius: 26,
           backgroundColor: "#FFFFFF",
-          borderWidth: 2, borderColor: statuses.length > 0 ? "#3b82f6" : "#d1d5db",
+          borderWidth: 2, borderColor: statuses.length > 0 ? "#2563EB" : "#d1d5db",
           alignItems: "center", justifyContent: "center",
-          shadowColor: "#3b82f6", shadowOpacity: statuses.length > 0 ? 0.3 : 0.08, shadowRadius: 10, elevation: 8,
+          shadowColor: "#2563EB", shadowOpacity: statuses.length > 0 ? 0.3 : 0.08, shadowRadius: 10, elevation: 8,
         }}
         onPress={async () => {
           setShowFriendsPanel(true);
@@ -1476,11 +1476,11 @@ export default function ExploreScreen() {
           setStatusRefreshing(false);
         }}
       >
-        <Ionicons name="people" size={22} color={statuses.length > 0 ? "#3b82f6" : "#9ca3af"} />
+        <Ionicons name="people" size={22} color={statuses.length > 0 ? "#2563EB" : "#9ca3af"} />
         {statuses.length > 0 && (
           <View style={{
             position: "absolute", top: -4, right: -4,
-            backgroundColor: "#F4743B", borderRadius: 10,
+            backgroundColor: "#38BDF8", borderRadius: 10,
             minWidth: 18, height: 18, alignItems: "center", justifyContent: "center",
             paddingHorizontal: 4, borderWidth: 2, borderColor: "#fff",
           }}>
@@ -1509,16 +1509,16 @@ export default function ExploreScreen() {
           }}>
             {/* Handle */}
             <View style={{ paddingTop: 12, paddingBottom: 4, alignItems: "center" }}>
-              <View style={{ width: 40, height: 4, backgroundColor: "#EDE9E3", borderRadius: 99 }} />
+              <View style={{ width: 40, height: 4, backgroundColor: "#DBEAFE", borderRadius: 99 }} />
             </View>
 
             {/* Header */}
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 12 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Ionicons name="people" size={20} color="#3b82f6" />
+                <Ionicons name="people" size={20} color="#2563EB" />
                 <Text style={{ fontSize: 18, fontWeight: "700", color: "#1C1C1E" }}>Who's Out</Text>
                 <View style={{ backgroundColor: "#EFF6FF", borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 }}>
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#3b82f6" }}>{statuses.length}</Text>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#2563EB" }}>{statuses.length}</Text>
                 </View>
               </View>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -1527,7 +1527,7 @@ export default function ExploreScreen() {
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   {statusRefreshing
-                    ? <ActivityIndicator size="small" color="#3b82f6" />
+                    ? <ActivityIndicator size="small" color="#2563EB" />
                     : <Ionicons name="refresh-outline" size={20} color="#3b82f6" />}
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => setShowFriendsPanel(false)}>
@@ -1551,7 +1551,7 @@ export default function ExploreScreen() {
                 {statuses.map((s) => {
                   const isLive = s.mode === "live";
                   const isMe = s.user_id === currentUser?.id;
-                  const color = isLive ? "#F4743B" : "#7C5CBF";
+                  const color = isLive ? "#38BDF8" : "#6366F1";
                   return (
                     <TouchableOpacity
                       key={s.id}
@@ -1566,9 +1566,9 @@ export default function ExploreScreen() {
                       }}
                       style={{
                         flexDirection: "row", alignItems: "center",
-                        backgroundColor: isMe ? "#FFF8F5" : "#FAFAF9",
+                        backgroundColor: isMe ? "#EFF6FF" : "#F8FAFF",
                         borderRadius: 16, padding: 12, marginBottom: 8,
-                        borderWidth: 1.5, borderColor: isMe ? "#F4743B30" : "#F3F0EB",
+                        borderWidth: 1.5, borderColor: isMe ? "#38BDF830" : "#F3F0EB",
                       }}
                     >
                       {/* Avatar */}
@@ -1589,7 +1589,7 @@ export default function ExploreScreen() {
                             {isMe ? "You" : s.username}
                           </Text>
                           <View style={{
-                            backgroundColor: isLive ? "#FFF0EA" : "#F0EBFF",
+                            backgroundColor: isLive ? "#EFF6FF" : "#EEF2FF",
                             borderRadius: 99, paddingHorizontal: 7, paddingVertical: 1,
                           }}>
                             <Text style={{ fontSize: 10, fontWeight: "700", color }}>
@@ -1632,7 +1632,7 @@ export default function ExploreScreen() {
         <View style={{
           position: "absolute", bottom: 100, left: 16, right: 16, zIndex: 25,
           backgroundColor: "#FFFFFF", borderRadius: 24, padding: 16,
-          shadowColor: "#8B7355", shadowOpacity: 0.12, shadowRadius: 16,
+          shadowColor: "#2563EB", shadowOpacity: 0.12, shadowRadius: 16,
           shadowOffset: { width: 0, height: 4 }, elevation: 10,
         }}>
           <TouchableOpacity
@@ -1646,7 +1646,7 @@ export default function ExploreScreen() {
           <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
             <View style={{
               width: 40, height: 40, borderRadius: 20,
-              backgroundColor: selectedStatus.mode === "live" ? "#F4743B" : "#7C5CBF",
+              backgroundColor: selectedStatus.mode === "live" ? "#38BDF8" : "#6366F1",
               alignItems: "center", justifyContent: "center", marginRight: 10,
             }}>
               <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16 }}>
@@ -1673,7 +1673,7 @@ export default function ExploreScreen() {
           {selectedStatus.message ? (
             <View style={{
               borderLeftWidth: 3,
-              borderLeftColor: selectedStatus.mode === "live" ? "#F4743B" : "#00A878",
+              borderLeftColor: selectedStatus.mode === "live" ? "#38BDF8" : "#2563EB",
               paddingLeft: 10, marginBottom: 8,
             }}>
               <Text style={{ color: "#334155", fontSize: 14, fontStyle: "italic" }}>
@@ -1683,7 +1683,7 @@ export default function ExploreScreen() {
           ) : null}
 
           {selectedStatus.location_name ? (
-            <Text style={{ color: "#00A878", fontSize: 12, marginBottom: 8 }}>
+            <Text style={{ color: "#2563EB", fontSize: 12, marginBottom: 8 }}>
               📍 {selectedStatus.location_name}
             </Text>
           ) : null}
@@ -1704,12 +1704,12 @@ export default function ExploreScreen() {
                     style={{
                       flex: 1, paddingVertical: 8, borderRadius: 50, alignItems: "center",
                       flexDirection: "row", justifyContent: "center", gap: 4,
-                      backgroundColor: sel ? "#F0EBF8" : "#F7F5F0",
-                      borderWidth: 1.5, borderColor: sel ? "#7C5CBF" : "transparent",
+                      backgroundColor: sel ? "#EEF2FF" : "#F0F7FF",
+                      borderWidth: 1.5, borderColor: sel ? "#6366F1" : "transparent",
                     }}
                   >
-                    <Ionicons name={icon} size={14} color={sel ? "#7C5CBF" : "#9CA3AF"} />
-                    <Text style={{ fontSize: 12, fontWeight: "600", color: sel ? "#7C5CBF" : "#6B7280" }}>
+                    <Ionicons name={icon} size={14} color={sel ? "#6366F1" : "#9CA3AF"} />
+                    <Text style={{ fontSize: 12, fontWeight: "600", color: sel ? "#6366F1" : "#6B7280" }}>
                       {label}
                     </Text>
                   </TouchableOpacity>
@@ -1738,8 +1738,8 @@ export default function ExploreScreen() {
       {pickingStatusPin && (
         <View style={{
           position: "absolute", top: FILTER_TOP + 60, left: 20, right: 20, zIndex: 30,
-          backgroundColor: "#7C5CBF", borderRadius: 18, padding: 16, alignItems: "center",
-          shadowColor: "#7C5CBF", shadowOpacity: 0.4, shadowRadius: 14, elevation: 10,
+          backgroundColor: "#6366F1", borderRadius: 18, padding: 16, alignItems: "center",
+          shadowColor: "#6366F1", shadowOpacity: 0.4, shadowRadius: 14, elevation: 10,
         }}>
           <Ionicons name="location-outline" size={22} color="#fff" style={{ marginBottom: 6 }} />
           <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>Tap the map to pin your location</Text>
@@ -1754,9 +1754,9 @@ export default function ExploreScreen() {
         style={{
           position: "absolute", bottom: 254, left: 16, zIndex: 25,
           width: 56, height: 56, borderRadius: 28,
-          backgroundColor: "#F5A623",
+          backgroundColor: "#0EA5E9",
           alignItems: "center", justifyContent: "center",
-          shadowColor: "#F5A623", shadowOpacity: 0.45, shadowRadius: 12, elevation: 9,
+          shadowColor: "#0EA5E9", shadowOpacity: 0.45, shadowRadius: 12, elevation: 9,
         }}
         onPress={() => router.push("/create-broadcast")}
       >
@@ -1774,7 +1774,7 @@ export default function ExploreScreen() {
           shadowOffset: { width: 0, height: -6 }, elevation: 16,
         }}>
           {/* Handle */}
-          <View style={{ alignSelf: "center", width: 40, height: 4, backgroundColor: "#EDE9E3", borderRadius: 99, marginBottom: 16 }} />
+          <View style={{ alignSelf: "center", width: 40, height: 4, backgroundColor: "#DBEAFE", borderRadius: 99, marginBottom: 16 }} />
 
           {/* Close */}
           <TouchableOpacity
@@ -1814,24 +1814,24 @@ export default function ExploreScreen() {
           {/* Info pills */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
             <View style={{ flexDirection: "row", gap: 8 }}>
-              <View style={{ backgroundColor: "#FFF8EC", borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: "#F5A62330" }}>
-                <Text style={{ fontSize: 12, fontWeight: "600", color: "#F5A623" }}>
+              <View style={{ backgroundColor: "#EFF6FF", borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: "#0EA5E930" }}>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: "#0EA5E9" }}>
                   {BROADCAST_EMOJIS[selectedBroadcast.type] ?? "📍"} {selectedBroadcast.type ?? "Other"}
                 </Text>
               </View>
               {selectedBroadcast.scheduled_at ? (
-                <View style={{ backgroundColor: "#F7F5F0", borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5 }}>
+                <View style={{ backgroundColor: "#F0F7FF", borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5 }}>
                   <Text style={{ fontSize: 12, fontWeight: "600", color: "#6B7280" }}>
                     📅 {new Date(selectedBroadcast.scheduled_at).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                   </Text>
                 </View>
               ) : (
-                <View style={{ backgroundColor: "#F7F5F0", borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5 }}>
+                <View style={{ backgroundColor: "#F0F7FF", borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5 }}>
                   <Text style={{ fontSize: 12, fontWeight: "600", color: "#6B7280" }}>🤷 Flexible</Text>
                 </View>
               )}
               {selectedBroadcast.location_name ? (
-                <View style={{ backgroundColor: "#F7F5F0", borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5 }}>
+                <View style={{ backgroundColor: "#F0F7FF", borderRadius: 99, paddingHorizontal: 10, paddingVertical: 5 }}>
                   <Text style={{ fontSize: 12, fontWeight: "600", color: "#6B7280" }} numberOfLines={1}>
                     📍 {selectedBroadcast.location_name}
                   </Text>
@@ -1884,7 +1884,7 @@ export default function ExploreScreen() {
             <TouchableOpacity
               style={{
                 paddingVertical: 14, borderRadius: 14, alignItems: "center",
-                backgroundColor: "#00A878",
+                backgroundColor: "#2563EB",
               }}
               onPress={() => { setSelectedBroadcast(null); router.push("/chats"); }}
             >
@@ -1893,7 +1893,7 @@ export default function ExploreScreen() {
           ) : selectedBroadcast.my_request_status === "pending" ? (
             <View style={{
               paddingVertical: 14, borderRadius: 14, alignItems: "center",
-              backgroundColor: "#F7F5F0", borderWidth: 1, borderColor: "#EDE9E3",
+              backgroundColor: "#F0F7FF", borderWidth: 1, borderColor: "#DBEAFE",
             }}>
               <Text style={{ color: "#9CA3AF", fontWeight: "600", fontSize: 15 }}>
                 Request sent — waiting for approval
@@ -1903,8 +1903,8 @@ export default function ExploreScreen() {
             <TouchableOpacity
               style={[{
                 paddingVertical: 14, borderRadius: 14, alignItems: "center",
-                backgroundColor: "#F5A623",
-                shadowColor: "#F5A623", shadowOpacity: 0.4, shadowRadius: 10, elevation: 5,
+                backgroundColor: "#0EA5E9",
+                shadowColor: "#0EA5E9", shadowOpacity: 0.4, shadowRadius: 10, elevation: 5,
               }, broadcastRequestLoading && { opacity: 0.6 }]}
               onPress={async () => {
                 setBroadcastRequestLoading(true);
@@ -2068,7 +2068,7 @@ export default function ExploreScreen() {
 const CARD_W = 150;
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F7F5F0" },
+  root: { flex: 1, backgroundColor: "#F0F7FF" },
 
   // Search
   searchWrapper: {
@@ -2078,9 +2078,9 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center",
     backgroundColor: "#fff", borderRadius: 14,
     paddingHorizontal: 12, height: 44,
-    shadowColor: "#8B7355", shadowOpacity: 0.1, shadowRadius: 12,
+    shadowColor: "#2563EB", shadowOpacity: 0.1, shadowRadius: 12,
     shadowOffset: { width: 0, height: 3 }, elevation: 5,
-    borderWidth: 1, borderColor: "#EDE9E3",
+    borderWidth: 1, borderColor: "#DBEAFE",
   },
   searchInput: {
     flex: 1, fontSize: 14, color: "#1C1C1E",
@@ -2088,15 +2088,15 @@ const styles = StyleSheet.create({
   },
   resultsDropdown: {
     backgroundColor: "#fff", borderRadius: 12, marginTop: 6,
-    shadowColor: "#8B7355", shadowOpacity: 0.08, shadowRadius: 10,
+    shadowColor: "#2563EB", shadowOpacity: 0.08, shadowRadius: 10,
     shadowOffset: { width: 0, height: 2 }, elevation: 4,
-    borderWidth: 1, borderColor: "#EDE9E3", overflow: "hidden",
+    borderWidth: 1, borderColor: "#DBEAFE", overflow: "hidden",
   },
   resultRow: {
     flexDirection: "row", alignItems: "center",
     paddingVertical: 10, paddingHorizontal: 12,
   },
-  resultRowBorder: { borderBottomWidth: 1, borderBottomColor: "#F7F5F0" },
+  resultRowBorder: { borderBottomWidth: 1, borderBottomColor: "#F0F7FF" },
   resultTitle: { fontSize: 13, fontWeight: "600", color: "#1C1C1E" },
   resultSub: { fontSize: 11, color: "#6B7280", marginTop: 1 },
 
@@ -2106,7 +2106,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 10,
     backgroundColor: "rgba(255,255,255,0.92)",
     borderRadius: 18,
-    shadowColor: "#8B7355", shadowOpacity: 0.07, shadowRadius: 10,
+    shadowColor: "#2563EB", shadowOpacity: 0.07, shadowRadius: 10,
     shadowOffset: { width: 0, height: 2 }, elevation: 4,
   },
   filterContent: {
@@ -2116,8 +2116,8 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center",
     backgroundColor: "#fff", borderRadius: 99,
     paddingHorizontal: 12, paddingVertical: 6,
-    borderWidth: 1, borderColor: "#EDE9E3",
-    shadowColor: "#8B7355", shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
+    borderWidth: 1, borderColor: "#DBEAFE",
+    shadowColor: "#2563EB", shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
     gap: 5,
   },
   chipText: { fontSize: 12, fontWeight: "600", color: "#1C1C1E" },
@@ -2128,7 +2128,7 @@ const styles = StyleSheet.create({
   },
   chipAvatarText: { fontSize: 9, fontWeight: "700", color: "#fff" },
   chipDivider: {
-    width: 1, height: 22, backgroundColor: "#EDE9E3", marginHorizontal: 4,
+    width: 1, height: 22, backgroundColor: "#DBEAFE", marginHorizontal: 4,
   },
 
   // Bottom sheet – expanded (place selected)
@@ -2137,7 +2137,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 28, borderTopRightRadius: 28,
     paddingTop: 10, paddingHorizontal: 20,
-    shadowColor: "#8B7355", shadowOpacity: 0.12, shadowRadius: 20,
+    shadowColor: "#2563EB", shadowOpacity: 0.12, shadowRadius: 20,
     shadowOffset: { width: 0, height: -6 }, elevation: 14,
     zIndex: 20,
   },
@@ -2149,7 +2149,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 28, borderTopRightRadius: 28,
     paddingTop: 10, paddingHorizontal: 20,
-    shadowColor: "#8B7355", shadowOpacity: 0.12, shadowRadius: 20,
+    shadowColor: "#2563EB", shadowOpacity: 0.12, shadowRadius: 20,
     shadowOffset: { width: 0, height: -6 }, elevation: 14,
     zIndex: 20,
   },
@@ -2160,7 +2160,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 28, borderTopRightRadius: 28,
     paddingHorizontal: 20,
-    shadowColor: "#8B7355", shadowOpacity: 0.09, shadowRadius: 16,
+    shadowColor: "#2563EB", shadowOpacity: 0.09, shadowRadius: 16,
     shadowOffset: { width: 0, height: -4 }, elevation: 8,
     zIndex: 20,
   },
@@ -2171,14 +2171,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 28, borderTopRightRadius: 28,
     paddingTop: 10,
-    shadowColor: "#8B7355", shadowOpacity: 0.09, shadowRadius: 16,
+    shadowColor: "#2563EB", shadowOpacity: 0.09, shadowRadius: 16,
     shadowOffset: { width: 0, height: -4 }, elevation: 8,
     zIndex: 20,
   },
 
   sheetHandle: {
     alignSelf: "center", width: 48, height: 5,
-    backgroundColor: "#EDE9E3", borderRadius: 99, marginBottom: 14,
+    backgroundColor: "#DBEAFE", borderRadius: 99, marginBottom: 14,
   },
   sheetClose: {
     position: "absolute", top: 14, right: 16, zIndex: 10,
@@ -2194,7 +2194,7 @@ const styles = StyleSheet.create({
   sheetOwner: { fontSize: 12, color: "#9CA3AF", marginLeft: 8 },
   sheetName: { fontSize: 21, fontWeight: "700", color: "#1C1C1E", marginBottom: 8 },
   sheetAddr: { fontSize: 14, color: "#6B7280", marginTop: 2 },
-  sheetCollection: { fontSize: 14, color: "#00A878", marginTop: 6, fontWeight: "600" },
+  sheetCollection: { fontSize: 14, color: "#2563EB", marginTop: 6, fontWeight: "600" },
 
   peekHeader: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
@@ -2205,14 +2205,14 @@ const styles = StyleSheet.create({
   placeCard: {
     width: CARD_W, backgroundColor: "#FFFFFF",
     borderRadius: 16, padding: 12,
-    shadowColor: "#8B7355", shadowOpacity: 0.07, shadowRadius: 12,
+    shadowColor: "#2563EB", shadowOpacity: 0.07, shadowRadius: 12,
     shadowOffset: { width: 0, height: 2 }, elevation: 3,
     overflow: "hidden",
   },
   listCard: {
     flexDirection: "row", alignItems: "center",
     backgroundColor: "#FFFFFF", borderRadius: 14, padding: 12, marginBottom: 8,
-    shadowColor: "#8B7355", shadowOpacity: 0.05, shadowRadius: 8,
+    shadowColor: "#2563EB", shadowOpacity: 0.05, shadowRadius: 8,
     shadowOffset: { width: 0, height: 1 }, elevation: 2,
     overflow: "hidden",
   },
@@ -2232,27 +2232,27 @@ const styles = StyleSheet.create({
   modalClose: { fontSize: 18, color: "#9CA3AF", padding: 4 },
   coordsHint: {
     fontSize: 12, color: "#6B7280", marginBottom: 14,
-    backgroundColor: "#F7F5F0", padding: 8, borderRadius: 8,
+    backgroundColor: "#F0F7FF", padding: 8, borderRadius: 8,
   },
   fieldLabel: { fontSize: 13, fontWeight: "600", color: "#1C1C1E", marginBottom: 8 },
   fieldInput: {
-    borderWidth: 1, borderColor: "#EDE9E3", borderRadius: 12,
+    borderWidth: 1, borderColor: "#DBEAFE", borderRadius: 12,
     padding: 12, marginBottom: 14, fontSize: 14, backgroundColor: "#FAFAF8",
   },
   collChip: {
-    borderWidth: 1, borderColor: "#EDE9E3", borderRadius: 99,
+    borderWidth: 1, borderColor: "#DBEAFE", borderRadius: 99,
     paddingHorizontal: 14, paddingVertical: 6, marginRight: 8, backgroundColor: "#fff",
   },
-  collChipActive: { borderColor: "#00A878", backgroundColor: "#F0FAF5" },
+  collChipActive: { borderColor: "#2563EB", backgroundColor: "#EFF6FF" },
   collChipText: { fontSize: 13, color: "#6B7280" },
-  collChipTextActive: { color: "#00A878", fontWeight: "600" },
+  collChipTextActive: { color: "#2563EB", fontWeight: "600" },
   typeChip: {
-    borderWidth: 1, borderColor: "#EDE9E3", borderRadius: 99,
+    borderWidth: 1, borderColor: "#DBEAFE", borderRadius: 99,
     paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "#fff",
   },
   typeChipText: { fontSize: 12, color: "#6B7280" },
   saveBtn: {
-    backgroundColor: "#00A878", borderRadius: 12,
+    backgroundColor: "#2563EB", borderRadius: 12,
     padding: 14, alignItems: "center", marginTop: 4,
   },
   saveBtnDisabled: { opacity: 0.5 },
@@ -2264,9 +2264,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.95)", borderRadius: 22,
     paddingHorizontal: 10, paddingVertical: 7,
     alignItems: "center", justifyContent: "center",
-    shadowColor: "#8B7355", shadowOpacity: 0.1, shadowRadius: 12,
+    shadowColor: "#2563EB", shadowOpacity: 0.1, shadowRadius: 12,
     shadowOffset: { width: 0, height: 3 }, elevation: 6,
-    borderWidth: 1, borderColor: "#EDE9E3",
+    borderWidth: 1, borderColor: "#DBEAFE",
     flexDirection: "row", gap: 4,
   },
   mapTypeBtnIcon: { fontSize: 16 },
@@ -2276,31 +2276,31 @@ const styles = StyleSheet.create({
   photoThumb: { width: 70, height: 70, borderRadius: 10 },
   photoRemove: {
     position: "absolute", top: -5, right: -5,
-    backgroundColor: "#F4743B", borderRadius: 99,
+    backgroundColor: "#38BDF8", borderRadius: 99,
     width: 18, height: 18, justifyContent: "center", alignItems: "center",
   },
   photoAddBtn: {
-    borderWidth: 1.5, borderColor: "#00A878", borderStyle: "dashed",
+    borderWidth: 1.5, borderColor: "#2563EB", borderStyle: "dashed",
     borderRadius: 12, paddingVertical: 10,
     alignItems: "center", marginBottom: 18,
   },
-  photoAddBtnText: { fontSize: 13, color: "#00A878", fontWeight: "600" },
+  photoAddBtnText: { fontSize: 13, color: "#2563EB", fontWeight: "600" },
 
   // NL search
   nlToggleBtn: {
     marginLeft: 6, paddingHorizontal: 6, paddingVertical: 2,
-    borderRadius: 8, borderWidth: 1, borderColor: "#EDE9E3",
+    borderRadius: 8, borderWidth: 1, borderColor: "#DBEAFE",
   },
   nlToggleBtnActive: {
-    backgroundColor: "#F0FAF5", borderColor: "#00A878",
+    backgroundColor: "#EFF6FF", borderColor: "#2563EB",
   },
   nlRow: {
     flexDirection: "row", alignItems: "center",
     backgroundColor: "#fff", borderRadius: 12, marginTop: 6,
     paddingHorizontal: 12, paddingVertical: 6,
-    shadowColor: "#8B7355", shadowOpacity: 0.07, shadowRadius: 8,
+    shadowColor: "#2563EB", shadowOpacity: 0.07, shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 }, elevation: 3,
-    borderWidth: 1, borderColor: "#EDE9E3",
+    borderWidth: 1, borderColor: "#DBEAFE",
   },
   nlInput: {
     flex: 1, fontSize: 13, color: "#1C1C1E",
@@ -2308,7 +2308,7 @@ const styles = StyleSheet.create({
   },
   nlSendBtn: {
     width: 32, height: 32, borderRadius: 16,
-    backgroundColor: "#00A878", alignItems: "center", justifyContent: "center",
+    backgroundColor: "#2563EB", alignItems: "center", justifyContent: "center",
     marginLeft: 8,
   },
 
@@ -2317,26 +2317,26 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center",
     backgroundColor: "#FAFAF8", borderRadius: 12,
     padding: 12, marginBottom: 8,
-    borderWidth: 1, borderColor: "#EDE9E3",
+    borderWidth: 1, borderColor: "#DBEAFE",
   },
   nlResultAccent: { width: 4, borderRadius: 2, alignSelf: "stretch", marginRight: 12 },
   nlResultName: { fontSize: 14, fontWeight: "700", color: "#1C1C1E", flex: 1 },
   nlResultAddr: { fontSize: 12, color: "#6B7280", marginTop: 3 },
-  nlResultColl: { fontSize: 12, color: "#00A878", marginTop: 3, fontWeight: "600" },
+  nlResultColl: { fontSize: 12, color: "#2563EB", marginTop: 3, fontWeight: "600" },
   nlResultBadge: { borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 },
   nlResultBadgeText: { fontSize: 11, fontWeight: "600" },
 
   // Recommendations
   recCard: {
     flexDirection: "row", alignItems: "flex-start",
-    backgroundColor: "#FFFDF6", borderRadius: 12,
+    backgroundColor: "#F0F7FF", borderRadius: 12,
     padding: 12, marginBottom: 8,
-    borderWidth: 1, borderColor: "#F5E9C8",
+    borderWidth: 1, borderColor: "#DBEAFE",
   },
   recAccent: { width: 4, borderRadius: 2, alignSelf: "stretch", marginRight: 12 },
   recName: { fontSize: 14, fontWeight: "700", color: "#1C1C1E", flex: 1 },
   recWhy: { fontSize: 13, color: "#6B7280", marginTop: 4, lineHeight: 18 },
-  recAddr: { fontSize: 12, color: "#F4743B", marginTop: 3, fontWeight: "600" },
+  recAddr: { fontSize: 12, color: "#38BDF8", marginTop: 3, fontWeight: "600" },
 
   // Status strip
   statusStrip: {
@@ -2375,12 +2375,12 @@ const styles = StyleSheet.create({
   // AI location info
   aiDesc: { fontSize: 14, color: "#334155", lineHeight: 21, marginBottom: 14 },
   aiCard: {
-    backgroundColor: "#F0FAF5", borderRadius: 12,
+    backgroundColor: "#EFF6FF", borderRadius: 12,
     padding: 12, marginBottom: 10,
-    borderLeftWidth: 3, borderLeftColor: "#00A878",
+    borderLeftWidth: 3, borderLeftColor: "#2563EB",
   },
   aiCardTitle: {
-    fontSize: 11, fontWeight: "700", color: "#00A878",
+    fontSize: 11, fontWeight: "700", color: "#2563EB",
     marginBottom: 4, textTransform: "uppercase", letterSpacing: 1.2,
   },
   aiCardText: { fontSize: 13, color: "#334155", lineHeight: 19 },

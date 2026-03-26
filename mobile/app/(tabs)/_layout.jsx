@@ -38,7 +38,7 @@ function FloatingTabBar({ state, navigation, hasSocialBadge }) {
             return (
               <LinearGradient
                 key={route.key}
-                colors={["#34d399", "#2dd4bf"]}
+                colors={["#2563EB", "#38BDF8"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.activeTab}
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     height: 60,
     paddingHorizontal: 8,
     gap: 4,
-    shadowColor: "#2dd4bf",
+    shadowColor: "#2563EB",
     shadowOpacity: 0.22,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 6 },

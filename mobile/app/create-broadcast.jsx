@@ -236,7 +236,7 @@ export default function CreateBroadcastScreen() {
               onChangeText={handleLocationSearch}
               returnKeyType="search"
             />
-            {locationLoading && <ActivityIndicator size="small" color="#F5A623" />}
+            {locationLoading && <ActivityIndicator size="small" color="#0EA5E9" />}
           </View>
           {locationResults.length > 0 && (
             <View style={styles.locationDropdown}>
@@ -261,14 +261,14 @@ export default function CreateBroadcastScreen() {
             style={styles.gpsBtn}
           >
             {gpsLoading
-              ? <ActivityIndicator size="small" color="#F5A623" />
-              : <Ionicons name="navigate-outline" size={16} color="#F5A623" />}
+              ? <ActivityIndicator size="small" color="#0EA5E9" />
+              : <Ionicons name="navigate-outline" size={16} color="#0EA5E9" />}
             <Text style={styles.gpsBtnText}>Use my current location</Text>
           </TouchableOpacity>
         </View>
         {locationCoords && (
           <View style={styles.locationSelectedChip}>
-            <Ionicons name="checkmark-circle" size={14} color="#00A878" />
+            <Ionicons name="checkmark-circle" size={14} color="#2563EB" />
             <Text style={styles.locationSelectedText} numberOfLines={1}>
               {locationName || `${locationCoords.lat.toFixed(4)}, ${locationCoords.lng.toFixed(4)}`}
             </Text>
@@ -301,7 +301,7 @@ export default function CreateBroadcastScreen() {
               onPress={() => setShowDatePicker(true)}
               style={styles.dateRow}
             >
-              <Ionicons name="calendar-outline" size={17} color="#F5A623" />
+              <Ionicons name="calendar-outline" size={17} color="#0EA5E9" />
               <Text style={styles.dateText}>
                 {scheduledDate.toLocaleDateString()} at {scheduledDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </Text>
@@ -342,7 +342,7 @@ export default function CreateBroadcastScreen() {
                 onPress={() => setVisibility(v.value)}
                 style={[styles.visPill, sel && styles.visPillActive]}
               >
-                <Ionicons name={v.icon} size={14} color={sel ? "#F5A623" : "#9CA3AF"} />
+                <Ionicons name={v.icon} size={14} color={sel ? "#0EA5E9" : "#9CA3AF"} />
                 <Text style={[styles.visPillText, sel && styles.visPillTextActive]}>{v.label}</Text>
               </TouchableOpacity>
             );
@@ -398,7 +398,7 @@ export default function CreateBroadcastScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F7F5F0" },
+  root: { flex: 1, backgroundColor: "#F0F7FF" },
   scroll: { flex: 1, paddingHorizontal: 20, paddingTop: 24 },
 
   sectionLabel: {
@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
   titleInput: {
     backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: "#EDE9E3",
+    borderColor: "#DBEAFE",
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
@@ -438,13 +438,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 50,
-    backgroundColor: "#F7F5F0",
+    backgroundColor: "#F0F7FF",
     borderWidth: 1.5,
-    borderColor: "#EDE9E3",
+    borderColor: "#DBEAFE",
   },
   typePillActive: {
-    backgroundColor: "#F5A623",
-    borderColor: "#F5A623",
+    backgroundColor: "#0EA5E9",
+    borderColor: "#0EA5E9",
   },
   typePillEmoji: { fontSize: 16 },
   typePillLabel: { fontSize: 13, fontWeight: "600", color: "#6B7280" },
@@ -454,7 +454,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#EDE9E3",
+    borderColor: "#DBEAFE",
     overflow: "hidden",
     shadowColor: "#000",
     shadowOpacity: 0.04,
@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
   },
   locationDropdown: {
     borderTopWidth: 1,
-    borderTopColor: "#EDE9E3",
+    borderTopColor: "#DBEAFE",
     backgroundColor: "#fff",
   },
   locationResultRow: {
@@ -483,9 +483,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
-  locationResultBorder: { borderBottomWidth: 1, borderBottomColor: "#F7F5F0" },
+  locationResultBorder: { borderBottomWidth: 1, borderBottomColor: "#F0F7FF" },
   locationResultText: { fontSize: 13, color: "#1C1C1E", flex: 1 },
-  locationDivider: { height: 1, backgroundColor: "#EDE9E3", marginHorizontal: 14 },
+  locationDivider: { height: 1, backgroundColor: "#DBEAFE", marginHorizontal: 14 },
   gpsBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -493,30 +493,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
-  gpsBtnText: { fontSize: 14, color: "#F5A623", fontWeight: "600" },
+  gpsBtnText: { fontSize: 14, color: "#0EA5E9", fontWeight: "600" },
   locationSelectedChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     marginTop: 8,
     alignSelf: "flex-start",
-    backgroundColor: "#F0FAF5",
+    backgroundColor: "#DBEAFE",
     borderRadius: 99,
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderWidth: 1,
-    borderColor: "#00A878",
+    borderColor: "#2563EB",
   },
   locationSelectedText: {
     fontSize: 12,
-    color: "#00A878",
+    color: "#2563EB",
     fontWeight: "600",
     maxWidth: 260,
   },
 
   pillRow: {
     flexDirection: "row",
-    backgroundColor: "#EDE9E3",
+    backgroundColor: "#DBEAFE",
     borderRadius: 50,
     padding: 4,
     gap: 4,
@@ -548,7 +548,7 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     marginTop: 10,
     borderWidth: 1,
-    borderColor: "#EDE9E3",
+    borderColor: "#DBEAFE",
     shadowColor: "#000",
     shadowOpacity: 0.04,
     shadowRadius: 6,
@@ -559,7 +559,7 @@ const styles = StyleSheet.create({
   descInput: {
     backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: "#EDE9E3",
+    borderColor: "#DBEAFE",
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
@@ -586,19 +586,19 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     backgroundColor: "#fff",
     borderWidth: 1.5,
-    borderColor: "#EDE9E3",
+    borderColor: "#DBEAFE",
   },
   visPillActive: {
-    backgroundColor: "#FFF8EC",
-    borderColor: "#F5A623",
+    backgroundColor: "#EFF6FF",
+    borderColor: "#0EA5E9",
   },
   visPillText: { fontSize: 12, fontWeight: "600", color: "#6B7280" },
-  visPillTextActive: { color: "#F5A623" },
+  visPillTextActive: { color: "#0EA5E9" },
 
   fieldInput: {
     backgroundColor: "#fff",
     borderWidth: 1,
-    borderColor: "#EDE9E3",
+    borderColor: "#DBEAFE",
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 13,
@@ -621,22 +621,22 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     backgroundColor: "#fff",
     borderWidth: 1.5,
-    borderColor: "#EDE9E3",
+    borderColor: "#DBEAFE",
   },
   expiryPillActive: {
-    backgroundColor: "#FFF8EC",
-    borderColor: "#F5A623",
+    backgroundColor: "#EFF6FF",
+    borderColor: "#0EA5E9",
   },
   expiryPillText: { fontSize: 12, fontWeight: "600", color: "#6B7280" },
-  expiryPillTextActive: { color: "#F5A623" },
+  expiryPillTextActive: { color: "#0EA5E9" },
 
   postBtn: {
     marginTop: 28,
-    backgroundColor: "#F5A623",
+    backgroundColor: "#0EA5E9",
     borderRadius: 16,
     paddingVertical: 16,
     alignItems: "center",
-    shadowColor: "#F5A623",
+    shadowColor: "#0EA5E9",
     shadowOpacity: 0.4,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },

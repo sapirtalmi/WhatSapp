@@ -112,8 +112,8 @@ function Avatar({ name, size = 40 }) {
 
 function StatusPill({ status }) {
   const isLive = status.mode === "live";
-  const accent = isLive ? "#F4743B" : "#7C5CBF";
-  const bg = isLive ? "#FFF4EE" : "#F5F0FF";
+  const accent = isLive ? "#38BDF8" : "#6366F1";
+  const bg = isLive ? "#EFF6FF" : "#EEF2FF";
   return (
     <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4, marginTop: 5 }}>
       <View style={{
@@ -300,7 +300,7 @@ function BroadcastsSegment() {
   if (loading) {
     return (
       <View style={sharedStyles.center}>
-        <ActivityIndicator size="large" color="#F5A623" />
+        <ActivityIndicator size="large" color="#0EA5E9" />
       </View>
     );
   }
@@ -401,7 +401,7 @@ function BroadcastsSegment() {
             {myBroadcasts.map((b) => {
               const emoji = BROADCAST_EMOJIS[b.type] ?? "📡";
               return (
-                <View key={b.id} style={[broadcastStyles.card, { borderLeftWidth: 3, borderLeftColor: "#F5A623" }]}>
+                <View key={b.id} style={[broadcastStyles.card, { borderLeftWidth: 3, borderLeftColor: "#0EA5E9" }]}>
                   <View style={broadcastStyles.cardLeft}>
                     <Text style={broadcastStyles.cardEmoji}>{emoji}</Text>
                   </View>
@@ -477,7 +477,7 @@ function ChatsSegment() {
   if (loading) {
     return (
       <View style={sharedStyles.center}>
-        <ActivityIndicator size="large" color="#00A878" />
+        <ActivityIndicator size="large" color="#2563EB" />
       </View>
     );
   }
@@ -628,7 +628,7 @@ function FriendsSegment() {
   }
 
   if (loading) {
-    return <View style={sharedStyles.center}><ActivityIndicator size="large" color="#4f46e5" /></View>;
+    return <View style={sharedStyles.center}><ActivityIndicator size="large" color="#2563EB" /></View>;
   }
 
   return (
@@ -720,8 +720,8 @@ function FriendsSegment() {
 
       {/* Active friends */}
       {friends.filter((f) => friendStatuses[f.user?.id]).length > 0 && (
-        <View style={[friendStyles.section, { backgroundColor: "#FFF8F5", borderLeftWidth: 3, borderLeftColor: "#F4743B" }]}>
-          <Text style={[friendStyles.sectionTitle, { color: "#F4743B" }]}>
+        <View style={[friendStyles.section, { backgroundColor: "#EFF6FF", borderLeftWidth: 3, borderLeftColor: "#38BDF8" }]}>
+          <Text style={[friendStyles.sectionTitle, { color: "#2563EB" }]}>
             🟠 Out right now ({friends.filter((f) => friendStatuses[f.user?.id]).length})
           </Text>
           {friends.filter((f) => friendStatuses[f.user?.id]).map((item) => (
@@ -829,16 +829,16 @@ const sharedStyles = StyleSheet.create({
 });
 
 const hubStyles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#F7F5F0" },
+  screen: { flex: 1, backgroundColor: "#F0F7FF" },
   segmentContainer: {
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 10,
-    backgroundColor: "#F7F5F0",
+    backgroundColor: "#F0F7FF",
   },
   segmentTrack: {
     flexDirection: "row",
-    backgroundColor: "#EDE9E3",
+    backgroundColor: "#DBEAFE",
     borderRadius: 12,
     padding: 4,
     gap: 2,
@@ -875,9 +875,9 @@ const broadcastStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 99,
-    backgroundColor: "#EDE9E3",
+    backgroundColor: "#DBEAFE",
   },
-  sortPillActive: { backgroundColor: "#F5A623" },
+  sortPillActive: { backgroundColor: "#0EA5E9" },
   sortPillText: { fontSize: 13, fontWeight: "600", color: "#6B7280" },
   sortPillTextActive: { color: "#fff" },
 
@@ -905,7 +905,7 @@ const broadcastStyles = StyleSheet.create({
   cardAction: { alignItems: "flex-end", gap: 4 },
 
   distBadge: {
-    backgroundColor: "#EDE9E3",
+    backgroundColor: "#DBEAFE",
     borderRadius: 99,
     paddingHorizontal: 7,
     paddingVertical: 2,
@@ -913,7 +913,7 @@ const broadcastStyles = StyleSheet.create({
   distBadgeText: { fontSize: 11, color: "#6B7280", fontWeight: "600" },
 
   joinBtn: {
-    backgroundColor: "#F5A623",
+    backgroundColor: "#0EA5E9",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -956,10 +956,10 @@ const broadcastStyles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 27,
-    backgroundColor: "#F5A623",
+    backgroundColor: "#0EA5E9",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#F5A623",
+    shadowColor: "#0EA5E9",
     shadowOpacity: 0.4,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
@@ -985,7 +985,7 @@ const broadcastStyles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "#EDE9E3",
+    backgroundColor: "#DBEAFE",
     marginBottom: 20,
   },
   sheetEmoji: { fontSize: 48, marginBottom: 8 },
@@ -1005,7 +1005,7 @@ const broadcastStyles = StyleSheet.create({
     alignItems: "center",
   },
   joinBtnLarge: {
-    backgroundColor: "#F5A623",
+    backgroundColor: "#0EA5E9",
     borderRadius: 14,
     paddingHorizontal: 32,
     paddingVertical: 14,
@@ -1039,7 +1039,7 @@ const chatStyles = StyleSheet.create({
   rowTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   userName: { fontSize: 15, fontWeight: "700", color: "#1C1C1E" },
   timeText: { fontSize: 11, color: "#9CA3AF" },
-  broadcastSub: { fontSize: 12, color: "#00A878", fontWeight: "500", marginTop: 2 },
+  broadcastSub: { fontSize: 12, color: "#0EA5E9", fontWeight: "500", marginTop: 2 },
   lastMsg: { fontSize: 13, color: "#6B7280", marginTop: 2 },
   lastMsgBold: { color: "#1C1C1E", fontWeight: "600" },
   unreadDot: {
@@ -1049,9 +1049,9 @@ const chatStyles = StyleSheet.create({
     width: 11,
     height: 11,
     borderRadius: 6,
-    backgroundColor: "#F4743B",
+    backgroundColor: "#2563EB",
     borderWidth: 2,
-    borderColor: "#F7F5F0",
+    borderColor: "#F0F7FF",
   },
   emptyTitle: { fontSize: 16, fontWeight: "700", color: "#1C1C1E", marginBottom: 6 },
   emptyHint: { fontSize: 13, color: "#6B7280" },
@@ -1070,7 +1070,7 @@ const friendStyles = StyleSheet.create({
     gap: 12,
   },
   sectionTitle: { fontSize: 13, fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: 0.6 },
-  countBadge: { backgroundColor: "#4f46e5", borderRadius: 99, paddingHorizontal: 7, paddingVertical: 2 },
+  countBadge: { backgroundColor: "#2563EB", borderRadius: 99, paddingHorizontal: 7, paddingVertical: 2 },
   countBadgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
   searchRow: {
     flexDirection: "row",
@@ -1092,7 +1092,7 @@ const friendStyles = StyleSheet.create({
   },
   userName: { fontSize: 14, fontWeight: "600", color: "#0f172a" },
   userSub: { fontSize: 12, color: "#94a3b8", marginTop: 1 },
-  addBtn: { backgroundColor: "#4f46e5", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+  addBtn: { backgroundColor: "#2563EB", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
   addBtnText: { color: "#fff", fontSize: 12, fontWeight: "600" },
   acceptBtn: {
     backgroundColor: "#dcfce7", borderRadius: 8,

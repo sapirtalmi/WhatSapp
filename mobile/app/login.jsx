@@ -47,7 +47,7 @@ export default function Login() {
         {/* Logo */}
         <View style={styles.logoWrap}>
           <LinearGradient
-            colors={["#34d399", "#2dd4bf"]}
+            colors={["#2563EB", "#38BDF8"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.logoCircle}
@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
   logoCircle: {
     width: 72, height: 72, borderRadius: 36,
     alignItems: "center", justifyContent: "center",
-    shadowColor: "#2dd4bf", shadowOpacity: 0.35,
+    shadowColor: "#2563EB", shadowOpacity: 0.35,
     shadowRadius: 20, shadowOffset: { width: 0, height: 8 },
     elevation: 10,
   },
@@ -188,6 +188,6 @@ const styles = StyleSheet.create({
   footerLink: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#0d9488",
+    color: "#2563EB",
   },
 });
