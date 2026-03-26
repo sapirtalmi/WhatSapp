@@ -10,9 +10,12 @@
 - `saved` → /collections/{id}/save, /collections/saved
 - `uploads` → POST /uploads/photo (multipart, max 5 MB)
 - `status` → /status CRUD + /status/feed + /status/my + /status/{id}/rsvp
+- `broadcasts` → /broadcasts CRUD + /broadcasts/map (geo+visibility) + /broadcasts/my + /broadcasts/joined + /broadcasts/{id}/request + /broadcasts/{id}/requests + /broadcasts/{id}/requests/{rid}
+- `chats` → /chats (list) + /chats/{id}/messages (GET, POST)
+- `ws` → WS /ws/{user_id} (in-memory ConnectionManager; `manager` singleton importable from `app.routers.ws`)
 
 ## Key Patterns
-- All routers use **sync** functions (not async). Only `ai.py` and `uploads.py` use async.
+- All routers use **sync** functions (not async). Only `ai.py`, `uploads.py`, `broadcasts.py` (update_request_status), and `chats.py` (send_message) use async (needed for WebSocket `await manager.send_to_user()`).
 - DB session: `db: Session = Depends(get_db)`, execute with `db.execute(select(...)).scalars().all()`
 - Auth: `current_user: User = Depends(get_current_user)` from `app.dependencies`
 - PostGIS insert: `WKTElement(f"POINT({lng} {lat})", srid=4326)` — x=lng, y=lat
@@ -34,6 +37,7 @@
 - `backend/app/models/friendship.py` — Friendship, FriendshipStatus enum
 - `backend/app/models/saved_collection.py` — SavedCollection
 - `backend/app/models/user_status.py` — UserStatus, StatusRSVP, StatusMode, ActivityType, RSVPResponse enums
+- `backend/app/models/broadcast.py` — Broadcast, BroadcastRequest, Chat, Message, BroadcastType, BroadcastVisibility, RequestStatus enums
 
 ## Detailed Notes
 See `patterns.md` for extended notes.

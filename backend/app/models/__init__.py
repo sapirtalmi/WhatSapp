@@ -12,3 +12,4 @@ from app.models.place import Place  # noqa: E402, F401
 from app.models.friendship import Friendship  # noqa: E402, F401
 from app.models.saved_collection import SavedCollection  # noqa: E402, F401
 from app.models.user_status import UserStatus, StatusRSVP  # noqa: E402, F401
+from app.models.broadcast import Broadcast, BroadcastRequest, Chat, Message  # noqa: E402, F401

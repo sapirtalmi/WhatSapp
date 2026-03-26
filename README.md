@@ -31,9 +31,14 @@ WhatSapp is a cross-platform social map application where users build curated co
   - Photo analysis to suggest place type and name
   - Personalized place recommendations based on your history
   - Full AI travel guide generation for any collection
+- **Map Broadcasts** — Post a broadcast pin on the map ("Anyone up for a hike?") with type, location, date, visibility, and max participants
+- **Two-Way Join Approval** — Users request to join a broadcast; creator accepts or declines; chat unlocks only after mutual approval
+- **Real-Time Chat** — iMessage-style chat per broadcast pair, delivered via WebSocket
+- **Social Hub Tab** — Unified tab showing nearby broadcasts, active chats, and friends in one place
 - **JWT Authentication** — Register, login, 30-day token expiry with auto-logout on 401
 - **Cross-Platform** — iOS + Android (Expo) and web (React + Vite) sharing the same REST API
 - **Cloud Deployed** — Backend on GCP Cloud Run, database on GCP Cloud SQL (PostgreSQL 15 + PostGIS)
+- **Google Maps Import** *(coming soon)* — Import saved places from Google Takeout directly into a collection
 
 ---
 
@@ -52,6 +57,7 @@ WhatSapp is a cross-platform social map application where users build curated co
 | Auth | python-jose + passlib + bcrypt | JWT tokens & password hashing |
 | AI | Google Gemini Flash (`google-genai`) | Generative AI features |
 | HTTP Client | Axios (with JWT interceptor) | Web & mobile API calls |
+| Real-time | WebSocket (FastAPI + Starlette) | Live chat message delivery |
 | Cloud | GCP Cloud Run + Cloud SQL + Artifact Registry | Production hosting |
 
 ---
@@ -84,8 +90,12 @@ WhatSapp/
 │
 ├── mobile/                     # Expo React Native app
 │   ├── app/
-│   │   ├── (tabs)/             # Tab screens: Map, Explore, Collections, Friends, Profile
+│   │   ├── (tabs)/             # Tab screens: Explore, Collections, Social Hub, Profile
 │   │   ├── collection/[id].jsx # Collection detail + place management
+│   │   ├── create-broadcast.jsx# Broadcast creation form
+│   │   ├── broadcast-requests.jsx # Manage incoming join requests
+│   │   ├── chats.jsx           # All active chats list
+│   │   ├── chat/[id].jsx       # Real-time chat screen
 │   │   ├── login.jsx
 │   │   └── register.jsx
 │   ├── src/
@@ -276,6 +286,34 @@ Web app at `http://localhost:5173`.
 | Method | Path | Description |
 |---|---|---|
 | POST | `/uploads/photo` | Upload a photo (JPEG/PNG/WebP/GIF, max 5 MB) |
+
+### Broadcasts — `/broadcasts`
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/broadcasts` | Create a broadcast pin on the map |
+| GET | `/broadcasts/map` | Get visible broadcasts near a lat/lng |
+| GET | `/broadcasts/my` | Your own broadcasts |
+| GET | `/broadcasts/joined` | Broadcasts you joined |
+| GET | `/broadcasts/{id}` | Broadcast detail |
+| DELETE | `/broadcasts/{id}` | Delete your broadcast |
+| POST | `/broadcasts/{id}/request` | Request to join a broadcast |
+| GET | `/broadcasts/{id}/requests` | List join requests (creator only) |
+| PATCH | `/broadcasts/{id}/requests/{rid}` | Accept or decline a request |
+
+### Chats — `/chats`
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/chats` | List all active chats |
+| GET | `/chats/{id}/messages` | Get messages in a chat |
+| POST | `/chats/{id}/messages` | Send a message |
+
+### WebSocket
+
+| Path | Description |
+|---|---|
+| `WS /ws/{user_id}` | Persistent WebSocket for real-time chat and notifications |
 
 ### AI — `/ai`
 

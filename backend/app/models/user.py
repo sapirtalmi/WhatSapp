@@ -38,3 +38,20 @@ class User(Base):
         back_populates="user", cascade="all, delete-orphan"
     )
     statuses: Mapped[list["UserStatus"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+    # Broadcast relationships
+    broadcasts: Mapped[list["Broadcast"]] = relationship(  # type: ignore[name-defined]
+        foreign_keys="Broadcast.creator_id", back_populates="creator", cascade="all, delete-orphan"
+    )
+    broadcast_requests: Mapped[list["BroadcastRequest"]] = relationship(  # type: ignore[name-defined]
+        foreign_keys="BroadcastRequest.requester_id", back_populates="requester", cascade="all, delete-orphan"
+    )
+    chats_as_p1: Mapped[list["Chat"]] = relationship(  # type: ignore[name-defined]
+        foreign_keys="Chat.participant_1_id", back_populates="participant_1"
+    )
+    chats_as_p2: Mapped[list["Chat"]] = relationship(  # type: ignore[name-defined]
+        foreign_keys="Chat.participant_2_id", back_populates="participant_2"
+    )
+    sent_messages: Mapped[list["Message"]] = relationship(  # type: ignore[name-defined]
+        foreign_keys="Message.sender_id", back_populates="sender"
+    )

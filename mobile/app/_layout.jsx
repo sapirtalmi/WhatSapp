@@ -18,6 +18,38 @@ export default function RootLayout() {
             headerStyle: { backgroundColor: "#fff" },
           }}
         />
+        <Stack.Screen
+          name="create-broadcast"
+          options={{
+            title: "Create Broadcast",
+            presentation: "modal",
+            headerStyle: { backgroundColor: "#fff" },
+            headerTitleStyle: { fontWeight: "700", color: "#1C1C1E" },
+            headerTintColor: "#F5A623",
+          }}
+        />
+        <Stack.Screen
+          name="broadcast-requests"
+          options={{
+            title: "Join Requests",
+            headerStyle: { backgroundColor: "#fff" },
+            headerTitleStyle: { fontWeight: "700", color: "#1C1C1E" },
+            headerTintColor: "#F5A623",
+          }}
+        />
+        <Stack.Screen
+          name="chats"
+          options={{
+            title: "Chats",
+            headerStyle: { backgroundColor: "#fff" },
+            headerTitleStyle: { fontWeight: "700", color: "#1C1C1E" },
+            headerTintColor: "#F5A623",
+          }}
+        />
+        <Stack.Screen
+          name="chat/[id]"
+          options={{ title: "Chat", headerShown: false }}
+        />
       </Stack>
     </AuthProvider>
     </GestureHandlerRootView>
